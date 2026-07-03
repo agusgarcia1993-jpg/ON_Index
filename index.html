@@ -513,10 +513,12 @@ td.m{color:var(--slate);font-size:12px}
       <div class="fg fg4">
         <input type="hidden" id="f-edit-id" value="">
         <div class="fgrp"><label class="flbl">Serie</label>
-          <select id="f-serie" class="fc" onchange="onFSerieChange()" title="Serie A: Reformas · Serie B: Honorarios/Gestión Inmobiliaria">
-            <option value="A">Serie A — Reformas</option>
-            <option value="B">Serie B — Honorarios / Gestión Inmobiliaria</option>
-          </select>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="f-serie" class="fc" onchange="onFSerieChange()" title="Serie A: Reformas · Serie B: Honorarios/Gestión Inmobiliaria" style="flex:1">
+              <option value="A">Serie A — Reformas</option>
+              <option value="B">Serie B — Honorarios / Gestión Inmobiliaria</option>
+            </select>
+          </div>
         </div>
         <div class="fgrp"><label class="flbl">Nº Factura</label><input id="f-num" class="fc" placeholder="A-2026-001"></div>
         <div class="fgrp"><label class="flbl">Fecha emisión</label><input id="f-fecha" class="fc" type="date"></div>
@@ -1421,83 +1423,12 @@ td.m{color:var(--slate);font-size:12px}
   </div>
   <div class="tabs">
     <div class="tab active" onclick="switchTab(this,'ftab-pend-cobro')">🔴 Pendientes de cobro</div>
-    <div class="tab" onclick="switchTab(this,'ftab-pend-fac')">📋 Pendientes de facturar</div>
+
   </div>
   <div id="ftab-pend-cobro" class="tab-panel active">
     <div class="card"><div class="ctitle">🔴 Facturas emitidas pendientes de cobro</div>
       <div class="tw"><table><thead><tr><th>Código proy.</th><th>Nº Factura</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Estado</th><th>Vencimiento</th><th>Alerta</th><th style="width:100px"></th></tr></thead>
       <tbody id="fac-pend-cobro-tbody"></tbody></table></div>
-    </div>
-  </div>
-  <div id="ftab-pend-fac" class="tab-panel">
-    <div class="card"><div class="ctitle">📋 Proyectos listos para facturar</div>
-      <p style="font-size:13px;color:var(--g600);margin-bottom:12px">Proyectos finalizados o con presupuesto pagado al 100% que aún no tienen factura emitida.</p>
-      <div class="tw"><table><thead><tr><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Presupuestado</th><th>Pagado anticipo</th><th>Estado proy.</th><th style="width:120px"></th></tr></thead>
-      <tbody id="pend-facturar-tbody"></tbody></table></div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ MODAL PROVEEDOR ═══════════════ -->
-<div id="modal-prov" class="modal-bg">
-  <div class="modal-box">
-    <div class="mhead"><h3 id="modal-prov-title">Nuevo proveedor</h3><button class="mcls" onclick="closeProvModal()">×</button></div>
-    <div class="mbody">
-      <input type="hidden" id="prov-edit-id">
-      <div class="fg fg2">
-        <div class="fgrp"><label class="flbl">Empresa / Nombre *</label><input id="prov-nombre" class="fc"></div>
-        <div class="fgrp"><label class="flbl">NIF / CIF</label><input id="prov-nif" class="fc" placeholder="B12345678"></div>
-        <div class="fgrp"><label class="flbl">Rubro *</label><select id="prov-rubro" class="fc" onchange="assignProvCodigo()">
-          <option value="">— Seleccionar —</option>
-          <option value="Albañilería">Albañilería</option>
-          <option value="Carpintería">Carpintería</option>
-          <option value="Electricidad">Electricidad</option>
-          <option value="Fontanería">Fontanería</option>
-          <option value="Pintura">Pintura</option>
-          <option value="Cerrajería">Cerrajería</option>
-          <option value="Vidrios y Complementos">Vidrios y Complementos</option>
-          <option value="Persianas y Toldos">Persianas y Toldos</option>
-          <option value="Climatización">Climatización</option>
-          <option value="Materiales">Materiales</option>
-          <option value="Reformas Integrales">Reformas Integrales</option>
-          <option value="Gestoría / Asesoría">Gestoría / Asesoría</option>
-          <option value="Abogado / Legal">Abogado / Legal</option>
-          <option value="Seguros">Seguros</option>
-          <option value="Banco / Financiero">Banco / Financiero</option>
-          <option value="Software / SaaS">Software / SaaS</option>
-          <option value="Marketing / Publicidad">Marketing / Publicidad</option>
-          <option value="Transporte / Logística">Transporte / Logística</option>
-          <option value="Suministros">Suministros</option>
-          <option value="Administración">Administración</option>
-          <option value="Otros">Otros</option>
-        </select></div>
-        <div class="fgrp"><label class="flbl">Código auto</label><input id="prov-codigo" class="fc" readonly style="background:var(--cream);font-weight:700;color:var(--gold)"></div>
-        <div class="fgrp"><label class="flbl">Email</label><input id="prov-email" class="fc" type="email"></div>
-        <div class="fgrp"><label class="flbl">Teléfono</label><input id="prov-tel" class="fc"></div>
-        <div class="fgrp"><label class="flbl">Teléfono 2</label><input id="prov-tel2" class="fc"></div>
-        <div class="fgrp"><label class="flbl">Web</label><input id="prov-web" class="fc" placeholder="https://"></div>
-        <div class="fgrp" style="grid-column:1/-1"><label class="flbl">Dirección (para facturas)</label><input id="prov-dir" class="fc" placeholder="Calle, número, piso..."></div>
-        <div class="fgrp"><label class="flbl">Ciudad</label><input id="prov-ciudad" class="fc" placeholder="Barcelona"></div>
-        <div class="fgrp"><label class="flbl">Código postal</label><input id="prov-cp" class="fc" placeholder="08001"></div>
-        <div class="fgrp" style="grid-column:1/-1"><label class="flbl">Descripción / Notas</label><textarea id="prov-desc" class="fc" style="min-height:60px"></textarea></div>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--g200)">
-        <button class="btn btn-o" onclick="closeProvModal()">Cancelar</button>
-        <button class="btn btn-g" onclick="saveProveedor()">💾 Guardar proveedor</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ TAREAS ═══════════════ -->
-<div id="s-tareas" class="sec">
-  <div class="ph">
-    <div><div class="pt">Tareas</div><div class="ps">Dashboard · Kanban · Calendario · Gantt</div></div>
-    <div class="btn-grp">
-      <button class="btn btn-o" onclick="exportTareasICS()">📅 Exportar .ics</button>
-      <button class="btn btn-o" onclick="exportTareasXLS()">📥 Exportar Excel</button>
-      <button class="btn btn-o" onclick="showTutorialICS()">❓ Ayuda calendario</button>
-      <button class="btn btn-p" onclick="openTareaModal()">+ Nueva tarea</button>
     </div>
   </div>
 
@@ -2549,8 +2480,8 @@ function onFacTipoChange() {
 }
 
 function confirmarBorrarFactura(docId) {
-  const doc = documents.find(d=>String(d.id)===String(docId));
-  if(!doc) return;
+  const doc = documents.find(function(d){ return String(d.id)===String(docId) || d.id===docId; });
+  if(!doc) { showToast('Documento no encontrado (id: '+docId+')','er'); return; }
   if(doc.type==='factura') {
     const msg = '⚠️ ATENCIÓN — Numeración fiscal\n\n' +
       'Borrar la factura '+doc.num+' creará un hueco en la numeración correlativa, lo que puede ser irregular ante Hacienda.\n\n' +
@@ -3522,9 +3453,21 @@ function toggleTipoGasto(tipo) {
 function onFSerieChange() {
   const serie = document.getElementById('f-serie')?.value||'A';
   const numEl = document.getElementById('f-num');
-  // Only auto-update if edit mode is empty (new factura) or num matches old serie pattern
   const editId = document.getElementById('f-edit-id')?.value||'';
-  if(!editId && numEl) numEl.value = getNextDocNum('factura', serie);
+  // Only auto-update number if creating new factura (not editing existing)
+  if(!editId && numEl) {
+    numEl.value = getNextDocNum('factura', serie);
+  } else if(editId && numEl) {
+    // When editing, suggest new number format but don't force it
+    const currentNum = numEl.value;
+    const year = new Date().getFullYear();
+    // If the current num is old format (FAC-), suggest the equivalent
+    if(currentNum.startsWith('FAC-') || (!currentNum.startsWith('A-') && !currentNum.startsWith('B-'))) {
+      const parts = currentNum.split('-');
+      const seq = parts[parts.length-1] || '001';
+      numEl.value = serie + '-' + year + '-' + seq;
+    }
+  }
 }
 
 function getSerieFromNum(num) {
@@ -6996,7 +6939,7 @@ function renderPresPendientes() {
 }
 
 function registrarPagoPresup(docId) {
-  const doc=documents.find(d=>String(d.id)===String(docId)); if(!doc) return;
+  const doc=documents.find(function(d){ return String(d.id)===String(docId) || d.id===docId; }); if(!doc){ showToast('Documento no encontrado','er'); return; }
   const pagado=(doc.pagosAnticipo||[]).reduce((s,p)=>s+p.cantidad,0);
   const pendiente=(doc.total||0)-pagado;
   const modal=document.getElementById('modal-pago-fac');
@@ -7391,7 +7334,11 @@ function editarFacturaDesdeHistorial(docId) {
     const sv=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v||'';};
     populateClienteSelects(); populateProyectoSelects();
     const editIdEl=document.getElementById('f-edit-id');if(editIdEl)editIdEl.value=doc.id;
-    const serieEl=document.getElementById('f-serie');if(serieEl)serieEl.value=getSerieFromNum(doc.num);
+    const serieEl=document.getElementById('f-serie');
+    if(serieEl) {
+      const detectedSerie = doc.serie || getSerieFromNum(doc.num);
+      serieEl.value = detectedSerie;
+    }
     sv('f-num',doc.num);
     sv('f-fecha',doc.fecha);
     sv('f-vencimiento',doc.vencimiento);
@@ -11141,8 +11088,8 @@ function validateNumeracion(type, num) {
   const year = new Date().getFullYear();
   // Facturas accept Serie A or Serie B format
   if(type==='factura') {
-    const okFmt = (num.startsWith('A-'+year+'-') || num.startsWith('B-'+year+'-'));
-    if(!okFmt) return {ok:false, msg:'El número '+num+' no sigue el formato de serie A-'+year+'-NNN o B-'+year+'-NNN. ¿Continuar?', warn:true};
+    const okFmt = (num.startsWith('A-'+year+'-') || num.startsWith('B-'+year+'-') || num.startsWith('FAC-'+year+'-'));
+    if(!okFmt) return {ok:false, msg:'El número '+num+' no sigue el formato recomendado (A-'+year+'-NNN o B-'+year+'-NNN). ¿Continuar con este número?', warn:true};
   } else if(!num.startsWith(prefix+'-'+year+'-')) {
     return {ok:false, msg:'El número '+num+' no sigue el formato recomendado '+prefix+'-'+year+'-NNN. ¿Continuar con este número?', warn:true};
   }
