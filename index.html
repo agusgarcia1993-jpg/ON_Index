@@ -268,7 +268,7 @@ td.m{color:var(--slate);font-size:12px}
   </div>
   <div style="margin-bottom:20px">
     <div class="slabel">CRM</div>
-    <div class="nav" onclick="showSec('tareas')" style="position:relative"><span class="ni">✅</span>Tareas<span id="sidebar-tareas-badge" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:var(--err);color:#fff;border-radius:99px;font-size:10px;font-weight:700;padding:1px 6px;display:none">0</span></div>
+
   </div>
   <div style="margin-bottom:20px">
     <div class="slabel">Presupuestos</div>
@@ -1432,110 +1432,6 @@ td.m{color:var(--slate);font-size:12px}
     </div>
   </div>
 
-  <!-- Tabs principales -->
-  <div class="tabs" style="margin-bottom:0">
-    <div class="tab active" onclick="switchTab(this,'ttareas-dash')">📊 Dashboard</div>
-    <div class="tab" onclick="switchTab(this,'ttareas-lista')">📋 Lista</div>
-    <div class="tab" onclick="switchTab(this,'ttareas-kanban')">🗂 Kanban</div>
-    <div class="tab" onclick="switchTab(this,'ttareas-cal')">📅 Calendario</div>
-    <div class="tab" onclick="switchTab(this,'ttareas-gantt')">📈 Gantt</div>
-    <div class="tab" onclick="switchTab(this,'ttareas-vencidas')">🔴 Vencidas</div>
-  </div>
-
-  <!-- DASHBOARD TAREAS -->
-  <div id="ttareas-dash" class="tab-panel active" style="padding-top:14px">
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-      <div class="kcard" style="border-top-color:#B8860B;cursor:pointer" onclick="filtrarTareas('pendiente')"><div class="klbl">⏳ Pendientes</div><div class="kval" id="tk-pend">0</div></div>
-      <div class="kcard" style="border-top-color:#1A56DB;cursor:pointer" onclick="filtrarTareas('en-progreso')"><div class="klbl">🔄 En progreso</div><div class="kval" id="tk-prog">0</div></div>
-      <div class="kcard" style="border-top-color:#C1121F;cursor:pointer" onclick="switchTab(document.querySelector('.tab:last-child'),'ttareas-vencidas')"><div class="klbl">🔴 Vencidas hoy</div><div class="kval" id="tk-venc">0</div></div>
-      <div class="kcard" style="border-top-color:#2D6A4F;cursor:pointer" onclick="filtrarTareas('completada')"><div class="klbl">✅ Completadas</div><div class="kval" id="tk-comp">0</div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px">
-      <div class="card">
-        <div class="ctitle">👤 Franco</div>
-        <div id="td-franco"></div>
-      </div>
-      <div class="card">
-        <div class="ctitle">👤 Agustín</div>
-        <div id="td-agustin"></div>
-      </div>
-      <div class="card">
-        <div class="ctitle">🏢 ObraNord</div>
-        <div id="td-obranord"></div>
-      </div>
-      <div class="card">
-        <div class="ctitle">📋 Actividad reciente</div>
-        <div id="td-reciente"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- LISTA -->
-  <div id="ttareas-lista" class="tab-panel" style="padding-top:14px">
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <select id="tl-resp" class="fc" style="width:140px" onchange="renderTareaLista()"><option value="">Todos</option><option>Franco</option><option>Agustín</option><option>ObraNord</option><option>Ambos</option></select>
-      <select id="tl-estado" class="fc" style="width:140px" onchange="renderTareaLista()"><option value="">Todos estados</option><option value="pendiente">Pendiente</option><option value="en-progreso">En progreso</option><option value="esperando">Esperando</option><option value="completada">Completada</option><option value="cancelada">Cancelada</option></select>
-      <select id="tl-prio" class="fc" style="width:130px" onchange="renderTareaLista()"><option value="">Toda prioridad</option><option value="urgente">Urgente</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
-      <input id="tl-search" class="fc" style="width:200px" placeholder="Buscar..." oninput="renderTareaLista()">
-    </div>
-    <div id="tareas-lista-container"></div>
-  </div>
-
-  <!-- KANBAN -->
-  <div id="ttareas-kanban" class="tab-panel" style="padding-top:14px">
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;min-height:400px" id="kanban-board">
-      <div class="kanban-col" id="kcol-pendiente" ondragover="event.preventDefault()" ondrop="dropKanban(event,'pendiente')">
-        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-bottom:10px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#B8860B;display:inline-block"></span>Pendiente <span id="kc-pend-n" style="font-weight:400"></span></div>
-        <div id="kc-pendiente" style="min-height:200px"></div>
-      </div>
-      <div class="kanban-col" id="kcol-en-progreso" ondragover="event.preventDefault()" ondrop="dropKanban(event,'en-progreso')">
-        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-bottom:10px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#1A56DB;display:inline-block"></span>En progreso <span id="kc-prog-n" style="font-weight:400"></span></div>
-        <div id="kc-en-progreso" style="min-height:200px"></div>
-      </div>
-      <div class="kanban-col" id="kcol-esperando" ondragover="event.preventDefault()" ondrop="dropKanban(event,'esperando')">
-        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-bottom:10px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#8FA3B4;display:inline-block"></span>Esperando <span id="kc-esp-n" style="font-weight:400"></span></div>
-        <div id="kc-esperando" style="min-height:200px"></div>
-      </div>
-      <div class="kanban-col" id="kcol-completada" ondragover="event.preventDefault()" ondrop="dropKanban(event,'completada')">
-        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-bottom:10px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#2D6A4F;display:inline-block"></span>Completada <span id="kc-comp-n" style="font-weight:400"></span></div>
-        <div id="kc-completada" style="min-height:200px"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CALENDARIO -->
-  <div id="ttareas-cal" class="tab-panel" style="padding-top:14px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-      <button class="btn btn-o btn-s" onclick="calNav(-1)">◀</button>
-      <span id="cal-titulo" style="font-weight:700;font-size:16px;min-width:160px;text-align:center"></span>
-      <button class="btn btn-o btn-s" onclick="calNav(1)">▶</button>
-      <button class="btn btn-o btn-s" onclick="calHoy()">Hoy</button>
-      <select id="cal-vista" class="fc" style="width:120px" onchange="renderCalendario()"><option value="mes">Mes</option></select>
-      <button class="btn btn-p btn-s" onclick="openEventoModal()" style="margin-left:auto">+ Nuevo evento</button>
-      <button class="btn btn-g btn-s" onclick="exportTodoICS()">📅 Exportar todo .ics</button>
-    </div>
-    <div id="cal-eventos-hoy" style="margin-bottom:10px"></div>
-    <div id="cal-grid"></div>
-  </div>
-
-  <!-- GANTT -->
-  <div id="ttareas-gantt" class="tab-panel" style="padding-top:14px">
-    <div class="card">
-      <div class="ctitle">📈 Cronograma de tareas</div>
-      <div id="gantt-container" style="overflow-x:auto"></div>
-    </div>
-  </div>
-
-  <!-- VENCIDAS -->
-  <div id="ttareas-vencidas" class="tab-panel" style="padding-top:14px">
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-        <div style="width:12px;height:12px;border-radius:50%;background:var(--err);animation:pulse 1.5s infinite"></div>
-        <div class="ctitle" style="margin:0">Tareas vencidas</div>
-      </div>
-      <div id="tareas-vencidas-list"></div>
-    </div>
-  </div>
 </div>
 
 <!-- ═══ MODAL TAREA ═══ -->
@@ -1988,6 +1884,65 @@ td.m{color:var(--slate);font-size:12px}
   </div>
 </div>
 
+
+
+<!-- ═══ MODAL PAGO/COBRO PROYECTO ═══ -->
+<div id="modal-pago-proyecto" class="modal-bg">
+  <div class="modal-box" style="max-width:500px">
+    <div class="mhead">
+      <h3 id="mproy-title">💰 Registrar cobro / pago en proyecto</h3>
+      <button class="mcls" onclick="document.getElementById('modal-pago-proyecto').classList.remove('open')">×</button>
+    </div>
+    <div class="mbody">
+      <input type="hidden" id="mproy-id">
+      <div id="mproy-resumen" style="background:var(--cream);border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px"></div>
+      <!-- Tipo: ingreso o gasto -->
+      <div class="fg fg2" style="margin-bottom:14px">
+        <div class="fgrp" style="grid-column:1/-1">
+          <label class="flbl">Tipo de movimiento</label>
+          <div style="display:flex;gap:8px">
+            <button id="mproy-btn-ingreso" class="btn btn-g" style="flex:1" onclick="setMproyTipo('ingreso')">💚 Cobro del cliente</button>
+            <button id="mproy-btn-gasto" class="btn btn-o" style="flex:1" onclick="setMproyTipo('gasto')">🔴 Pago a proveedor</button>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" id="mproy-tipo" value="ingreso">
+      <div class="fg fg2">
+        <div class="fgrp"><label class="flbl">Fecha *</label><input id="mproy-fecha" class="fc" type="date"></div>
+        <div class="fgrp"><label class="flbl">Importe (€) *</label><input id="mproy-importe" class="fc" type="number" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="fgrp"><label class="flbl">Medio de pago</label>
+          <select id="mproy-medio" class="fc">
+            <option value="Transferencia">Transferencia</option>
+            <option value="Efectivo">💵 Efectivo</option>
+            <option value="Bizum">Bizum</option>
+            <option value="Tarjeta">Tarjeta</option>
+            <option value="Cheque">Cheque</option>
+          </select>
+        </div>
+        <div class="fgrp"><label class="flbl">Descripción / Ref.</label>
+          <input id="mproy-desc" class="fc" placeholder="Anticipo, señal, pago factura...">
+        </div>
+        <div class="fgrp" id="mproy-proveedor-wrap" style="display:none">
+          <label class="flbl">Proveedor (si aplica)</label>
+          <input id="mproy-proveedor" class="fc" placeholder="Nombre del proveedor...">
+        </div>
+        <div class="fgrp" style="grid-column:1/-1">
+          <label class="flbl">Factura asociada (opcional)</label>
+          <select id="mproy-factura-ref" class="fc">
+            <option value="">— Sin factura asociada (anticipo/señal) —</option>
+          </select>
+        </div>
+      </div>
+      <div id="mproy-aviso-efectivo" style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:8px 12px;font-size:11px;color:#856404;margin-top:8px">
+        💵 <strong>Efectivo:</strong> este movimiento se registrará en Tesorería con medio "Efectivo" y aparecerá en el saldo de caja.
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--g200)">
+        <button class="btn btn-o" onclick="document.getElementById('modal-pago-proyecto').classList.remove('open')">Cancelar</button>
+        <button class="btn btn-g" onclick="savePagoProyecto()">💾 Registrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ MODAL DETALLE DOCUMENTO ═══ -->
 <div id="modal-doc-detalle" class="modal-bg">
@@ -2480,7 +2435,11 @@ function onFacTipoChange() {
 }
 
 function confirmarBorrarFactura(docId) {
-  const doc = documents.find(function(d){ return String(d.id)===String(docId) || d.id===docId; });
+  console.log('[borrar] docId recibido:', docId, 'tipo:', typeof docId);
+  console.log('[borrar] IDs en documents:', documents.slice(0,5).map(function(d){return {id:d.id, tipo:typeof d.id, num:d.num};}));
+  const doc = documents.find(function(d){ 
+    return String(d.id).trim() === String(docId).trim() || d.id === docId;
+  });
   if(!doc) { showToast('Documento no encontrado (id: '+docId+')','er'); return; }
   if(doc.type==='factura') {
     const msg = '⚠️ ATENCIÓN — Numeración fiscal\n\n' +
@@ -3030,7 +2989,6 @@ function importBackupJSON(input) {
       saveData();
       populateClienteSelects();
   populateProyectoSelects();
-  renderTareas();
   setTimeout(mostrarResumenDiario, 1500);
   // Set current trimestre
   const curT=Math.floor(new Date().getMonth()/3)+1;
@@ -3113,7 +3071,6 @@ function showSec(id) {
   if (id==='pres-pendientes') renderPresPendientes();
   if (id==='ordenes') renderOrdenes();
   if (id==='fac-pendientes') renderFacPendientes();
-  if (id==='tareas') renderTareas();
 }
 
 function switchTab(el, tabId) {
@@ -5648,6 +5605,7 @@ function renderProyectos() {
       </td>
       <td style="font-size:10px;color:var(--slate)">${pagoStr||'—'}</td>
       <td style="white-space:nowrap">
+        <button class="btn btn-g btn-s" style="padding:4px 8px;margin-bottom:2px" onclick="abrirModalPagoProyecto('${p.id}')" title="Registrar cobro o pago">💰</button>
         <button class="btn btn-o btn-s" style="padding:4px 8px" onclick="openProyectoModal('${p.id}')">✏️</button>
         <button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer;margin-left:3px" onclick="deleteProyecto('${p.id}')">🗑</button>
         <button class="btn btn-o btn-s" style="padding:4px 8px;margin-left:3px" title="Generar Memoria PDF de Portfolio" onclick="generarPortfolioProyecto('${p.id}')">📄</button>
@@ -5655,6 +5613,154 @@ function renderProyectos() {
       </td>
     </tr>`;
   }).join('');
+}
+
+
+// ═══════════════════════════════════════════════════════
+// PAGO / COBRO DIRECTO EN PROYECTO
+// ═══════════════════════════════════════════════════════
+function setMproyTipo(tipo) {
+  document.getElementById('mproy-tipo').value = tipo;
+  const bIn = document.getElementById('mproy-btn-ingreso');
+  const bOut = document.getElementById('mproy-btn-gasto');
+  const wrapProv = document.getElementById('mproy-proveedor-wrap');
+  const avisoEf = document.getElementById('mproy-aviso-efectivo');
+  if(tipo === 'ingreso') {
+    bIn.className = 'btn btn-g'; bOut.className = 'btn btn-o';
+    document.getElementById('mproy-title').textContent = '💚 Registrar cobro en proyecto';
+    if(wrapProv) wrapProv.style.display = 'none';
+  } else {
+    bIn.className = 'btn btn-o'; bOut.className = 'btn btn-g';
+    document.getElementById('mproy-title').textContent = '🔴 Registrar pago en proyecto';
+    if(wrapProv) wrapProv.style.display = '';
+  }
+  // Show efectivo warning
+  const medio = document.getElementById('mproy-medio')?.value;
+  if(avisoEf) avisoEf.style.display = medio === 'Efectivo' ? '' : 'none';
+}
+
+function abrirModalPagoProyecto(proyId) {
+  const p = proyectos.find(function(x){ return String(x.id)===String(proyId)||x.codigo===proyId; });
+  if(!p) return;
+
+  document.getElementById('mproy-id').value = p.id;
+  document.getElementById('mproy-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mproy-importe').value = '';
+  document.getElementById('mproy-desc').value = '';
+  document.getElementById('mproy-proveedor').value = '';
+  document.getElementById('mproy-medio').value = 'Transferencia';
+  document.getElementById('mproy-aviso-efectivo').style.display = 'none';
+
+  // Set default tipo ingreso
+  setMproyTipo('ingreso');
+
+  // Resumen del proyecto
+  const facturasP = documents.filter(function(d){ return d.type==='factura' && d.proyCod===p.codigo && d.estado!=='Anulado'; });
+  const totalFac = facturasP.reduce(function(s,d){ return s+(d.total||0); }, 0);
+  const totalCobrado = facturasP.reduce(function(s,d){ return s+(d.pagos||[]).reduce(function(s2,pg){ return s2+(pg.importe||0); },0); }, 0);
+  const pendCobrar = totalFac - totalCobrado;
+  const presup = p.importePres||0;
+
+  document.getElementById('mproy-resumen').innerHTML =
+    '<strong>'+escapeHtml(p.nombre)+'</strong> · <span class="badge bgry">'+escapeHtml(p.codigo||'')+'</span>'
+    + '<br>Cliente: <strong>'+escapeHtml(p.clienteNombre||'—')+'</strong>'
+    + '<br><span style="color:var(--slate)">Presupuestado: <strong>€'+presup.toFixed(2)+'</strong>'
+    + ' · Facturado: <strong>€'+totalFac.toFixed(2)+'</strong>'
+    + ' · Cobrado: <strong style="color:var(--ok)">€'+totalCobrado.toFixed(2)+'</strong>'
+    + (pendCobrar > 0.01 ? ' · Pendiente: <strong style="color:var(--err)">€'+pendCobrar.toFixed(2)+'</strong>' : ' · <strong style="color:var(--ok)">✅ Al día</strong>')
+    + '</span>';
+
+  // Populate factura ref select with project facturas + unlinked facturas
+  const facSel = document.getElementById('mproy-factura-ref');
+  facSel.innerHTML = '<option value="">— Sin factura asociada (anticipo/señal) —</option>';
+  facturasP.forEach(function(d){
+    const cob = (d.pagos||[]).reduce(function(s,pg){return s+(pg.importe||0);},0);
+    const pend = Math.max(0,(d.total||0)-cob);
+    const opt = document.createElement('option');
+    opt.value = d.id;
+    opt.textContent = d.num+' · €'+d.total.toFixed(2)+(pend>0?' · ⏳ Pendiente €'+pend.toFixed(2):' · ✅ Cobrada');
+    facSel.appendChild(opt);
+  });
+
+  // Auto-fill importe with pending amount if any
+  if(pendCobrar > 0.01) document.getElementById('mproy-importe').value = pendCobrar.toFixed(2);
+
+  // Wire medio change for efectivo warning
+  document.getElementById('mproy-medio').onchange = function() {
+    const av = document.getElementById('mproy-aviso-efectivo');
+    if(av) av.style.display = this.value === 'Efectivo' ? '' : 'none';
+  };
+
+  document.getElementById('modal-pago-proyecto').classList.add('open');
+}
+
+function savePagoProyecto() {
+  const proyId = document.getElementById('mproy-id').value;
+  const p = proyectos.find(function(x){ return String(x.id)===String(proyId); });
+  if(!p) { showToast('Proyecto no encontrado','er'); return; }
+
+  const tipo = document.getElementById('mproy-tipo').value;
+  const fecha = document.getElementById('mproy-fecha').value;
+  const importe = parseFloat(document.getElementById('mproy-importe').value)||0;
+  const medio = document.getElementById('mproy-medio').value;
+  const desc = document.getElementById('mproy-desc').value.trim();
+  const proveedor = document.getElementById('mproy-proveedor').value.trim();
+  const facRefId = document.getElementById('mproy-factura-ref').value;
+
+  if(!fecha) { showToast('Indica la fecha','er'); return; }
+  if(importe <= 0) { showToast('El importe debe ser mayor que 0','er'); return; }
+
+  // If linked to existing factura, register as pago in that factura
+  if(facRefId && tipo === 'ingreso') {
+    const fac = documents.find(function(d){ return String(d.id)===String(facRefId); });
+    if(fac) {
+      if(!fac.pagos) fac.pagos = [];
+      fac.pagos.push({ fecha, importe, medio, notas: desc });
+      const totalCob = fac.pagos.reduce(function(s,pg){return s+(pg.importe||0);},0);
+      if(totalCob >= (fac.total||0)*0.999) fac.estado = 'Cobrado';
+      else if(totalCob > 0) fac.estado = 'Parcialmente cobrado';
+      syncProyectoFromDoc(fac);
+    }
+  }
+
+  // Always create Tesorería entry
+  const concepto = tipo === 'ingreso'
+    ? (desc || 'Cobro proyecto '+p.codigo+(facRefId ? ' (vinc. factura)' : ' — anticipo/señal'))
+    : (desc || 'Pago a proveedor proyecto '+p.codigo+(proveedor?' · '+proveedor:''));
+
+  tesoreria.unshift({
+    id: generateId(),
+    tipo: tipo === 'ingreso' ? 'ingreso' : 'salida',
+    fecha, medio, concepto, importe,
+    estado: 'Realizado',
+    contraparte: tipo === 'ingreso' ? (p.clienteNombre||'') : (proveedor||''),
+    ref: p.codigo||'',
+    proyCod: p.codigo||'',
+    _docId: facRefId||''
+  });
+
+  // If gasto, also register as gasto entry for accounting
+  if(tipo === 'gasto') {
+    const ivaEst = Math.round(importe * 0.21 / 1.21 * 100) / 100;
+    const base = Math.round((importe - ivaEst) * 100) / 100;
+    gastos.unshift({
+      id: generateId(),
+      fecha, cat: 'Materiales',
+      desc: concepto,
+      prov: proveedor||'', provCod:'', factura:'',
+      importe: base, ivaPct: 21, irpfPct: 0, retencion: 0,
+      total: importe,
+      metodo: medio, pagador: 'ObraNord', estado: 'Pagado',
+      proyCod: p.codigo||'',
+      tipoGasto: 'empresa',
+      notas: 'Auto desde proyecto '+p.codigo+(desc?' · '+desc:'')
+    });
+  }
+
+  saveData('pago_proyecto', (tipo==='ingreso'?'Cobro':'Pago')+' €'+importe+' en '+p.codigo);
+  document.getElementById('modal-pago-proyecto').classList.remove('open');
+  renderProyectos(); renderTesoreria(); renderFacPendientes(); renderGastos(); updateDashboard();
+  showToast('✅ '+importe.toFixed(2)+' € registrado en proyecto '+p.codigo+' · '+medio, 'ok');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -7005,22 +7111,23 @@ function renderFacPendientes() {
   const tb1=document.getElementById('fac-pend-cobro-tbody');
   const allFacs=[...facPend, ...facParcial, ...facVerif, ...facCobradas];
   if(tb1) {
-    if(!tb1._delegated) {
-      tb1._delegated = true;
-      tb1.addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-action]');
-        if(!btn) return;
-        const id = btn.getAttribute('data-id');
-        const action = btn.getAttribute('data-action');
-        if(action==='cobrar-fac')    openPagoFacModal(id);
-        if(action==='pdf-doc')       generatePDFFromDoc(id);
-        if(action==='verificar-fac') verificarFactura(id);
-        if(action==='cerrar-fac')    marcarFacturaCobrada(id);
-        if(action==='edit-fac')      editarFacturaDesdeHistorial(id);
-        if(action==='to-proforma')  crearProformaDesdeFactura(id);
-        if(action==='del-fac')       confirmarBorrarFactura(id);
-      });
-    }
+    // Always fresh listener — clone removes old ones
+    const tb1New = tb1.cloneNode(false);
+    tb1.parentNode.replaceChild(tb1New, tb1);
+    const tb1 = tb1New;
+    tb1.addEventListener('click', function(e) {
+      const btn = e.target.closest('[data-action]');
+      if(!btn) return;
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      if(action==='cobrar-fac')    openPagoFacModal(id);
+      if(action==='pdf-doc')       generatePDFFromDoc(id);
+      if(action==='verificar-fac') verificarFactura(id);
+      if(action==='cerrar-fac')    marcarFacturaCobrada(id);
+      if(action==='edit-fac')      editarFacturaDesdeHistorial(id);
+      if(action==='to-proforma')   crearProformaDesdeFactura(id);
+      if(action==='del-fac')       confirmarBorrarFactura(id);
+    });
     tb1.innerHTML = allFacs.length ? allFacs.map(function(d) {
       const cobrado=(d.pagos||[]).reduce(function(s,p){return s+(p.importe||0);},0);
       const pend=(d.total||0)-cobrado;
@@ -8008,6 +8115,8 @@ function deleteTarea(id) {
 }
 
 function renderTareas() {
+  // Tareas section removed
+  return;
   renderTareasDash();
   renderTareaLista();
   renderKanban();
@@ -9699,7 +9808,6 @@ function applyImportedClientes(rows, filename) {
   saveData();
   populateClienteSelects();
   populateProyectoSelects();
-  renderTareas();
   setTimeout(mostrarResumenDiario, 1500);
   // Set current trimestre
   const curT=Math.floor(new Date().getMonth()/3)+1;
@@ -9920,7 +10028,6 @@ function renderAllAfterSync() {
   populateClienteSelects();
   populateProyectoSelects();
   populateRectificativaOriginalSel();
-  renderTareas();
   renderHistory();
   renderProyectos();
   renderClientes();
@@ -9985,7 +10092,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
   populateClienteSelects();
   populateProyectoSelects();
   populateRectificativaOriginalSel();
-  renderTareas();
   renderPinKeypad();
   setTimeout(mostrarResumenDiario, 1500);
   // Procesar gastos recurrentes pendientes al arrancar
