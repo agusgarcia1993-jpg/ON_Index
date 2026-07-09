@@ -273,12 +273,10 @@ td.m{color:var(--slate);font-size:12px}
   <div style="margin-bottom:20px">
     <div class="slabel">Presupuestos</div>
     <div class="nav" onclick="showSec('nuevo-presupuesto')"><span class="ni">📋</span>Nuevo presupuesto</div>
-    <div class="nav" onclick="showSec('pres-pendientes')"><span class="ni">⏳</span>Presupuestos pendientes</div>
   </div>
   <div style="margin-bottom:20px">
     <div class="slabel">Facturas</div>
     <div class="nav" onclick="showSec('nueva-factura')"><span class="ni">🧾</span>Nueva factura</div>
-    <div class="nav" onclick="showSec('fac-pendientes')"><span class="ni">🔴</span>Facturas pendientes</div>
     <div class="nav" onclick="showSec('nueva-proforma')"><span class="ni">📄</span>Factura Proforma</div>
     <div class="nav" onclick="showSec('nueva-rectificativa')"><span class="ni">↩️</span>Fac. Rectificativa</div>
   </div>
@@ -1391,181 +1389,6 @@ td.m{color:var(--slate);font-size:12px}
 </div>
 
 <!-- ═══════════════ PRESUPUESTOS PENDIENTES ═══════════════ -->
-<div id="s-pres-pendientes" class="sec">
-  <div class="ph">
-    <div><div class="pt">Presupuestos pendientes</div><div class="ps">Sin aprobar · Pagos parciales · Pendientes de aprobación</div></div>
-    <button class="btn btn-p" onclick="showSec('nuevo-presupuesto')">+ Nuevo presupuesto</button>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
-    <div class="kcard" style="border-top-color:#C1121F"><div class="klbl">🔴 FALTA POR PAGAR</div><div class="kval" id="kpi-pres-pend">0</div><div class="ksub">Sin pago recibido</div></div>
-    <div class="kcard" style="border-top-color:#B8860B"><div class="klbl">🟡 PAGADO PARCIALMENTE</div><div class="kval" id="kpi-pres-parcial">0</div><div class="ksub">Anticipo recibido</div></div>
-    <div class="kcard" style="border-top-color:#2D6A4F"><div class="klbl">✅ PAGADO</div><div class="kval" id="kpi-pres-pagado">0</div><div class="ksub">Listos para facturar</div></div>
-    <div class="kcard" style="border-top-color:#C4A882"><div class="klbl">💰 Importe pendiente</div><div class="kval" id="kpi-pres-importe">€0</div><div class="ksub">Total por cobrar</div></div>
-  </div>
-  <div class="card">
-    <div class="ctitle">📋 Presupuestos activos</div>
-    <div class="tw"><table><thead><tr><th>Código</th><th>Nº Presupuesto</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Pendiente</th><th>Estado pago</th><th>Fecha</th><th style="width:160px">Acciones</th></tr></thead>
-    <tbody id="pres-pend-tbody"></tbody></table></div>
-  </div>
-</div>
-
-<!-- ═══════════════ FACTURAS PENDIENTES ═══════════════ -->
-<div id="s-fac-pendientes" class="sec">
-  <div class="ph">
-    <div><div class="pt">Facturas pendientes</div><div class="ps">Por cobrar · Pendientes de facturación · Proyectos finalizados</div></div>
-    <button class="btn btn-p" onclick="showSec('nueva-factura')">+ Nueva factura</button>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
-    <div class="kcard" style="border-top-color:#C1121F"><div class="klbl">🔴 Pendientes de cobro</div><div class="kval" id="kpi-fac-pend">0</div><div class="ksub">Facturas sin cobrar</div></div>
-    <div class="kcard" style="border-top-color:#B8860B"><div class="klbl">🟡 Cobro parcial</div><div class="kval" id="kpi-fac-parcial">0</div><div class="ksub">Facturas cobradas parcialmente</div></div>
-    <div class="kcard" style="border-top-color:#2D6A4F"><div class="klbl">✅ Verificadas en banco</div><div class="kval" id="kpi-fac-verif">0</div><div class="ksub">Dinero confirmado en cuenta</div></div>
-    <div class="kcard" style="border-top-color:#C4A882"><div class="klbl">💰 Total pendiente</div><div class="kval" id="kpi-fac-importe">€0</div><div class="ksub">Importe total por cobrar</div></div>
-  </div>
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab(this,'ftab-pend-cobro')">🔴 Pendientes de cobro</div>
-
-  </div>
-  <div id="ftab-pend-cobro" class="tab-panel active">
-    <div class="card"><div class="ctitle">🔴 Facturas emitidas pendientes de cobro</div>
-      <div class="tw"><table><thead><tr><th>Código proy.</th><th>Nº Factura</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Pendiente</th><th>Estado</th><th>Vencimiento</th><th>Alerta</th><th style="width:100px"></th></tr></thead>
-      <tbody id="fac-pend-cobro-tbody"></tbody></table></div>
-    </div>
-  </div>
-
-</div>
-
-<!-- ═══ MODAL TAREA ═══ -->
-<div id="modal-tarea" class="modal-bg">
-  <div class="modal-box" style="max-width:600px">
-    <div class="mhead"><h3 id="modal-tarea-title">Nueva tarea</h3><button class="mcls" onclick="closeTareaModal()">×</button></div>
-    <div class="mbody">
-      <input type="hidden" id="tarea-edit-id">
-      <div class="fg fg2">
-        <div class="fgrp" style="grid-column:1/-1"><label class="flbl">Título *</label><input id="t-titulo" class="fc" placeholder="¿Qué hay que hacer?"></div>
-        <div class="fgrp" style="grid-column:1/-1"><label class="flbl">Descripción</label><textarea id="t-desc" class="fc" style="min-height:60px" placeholder="Detalles, contexto..."></textarea></div>
-        <div class="fgrp"><label class="flbl">Responsable</label>
-          <select id="t-resp" class="fc"><option value="Franco">Franco</option><option value="Agustín">Agustín</option><option value="ObraNord">ObraNord</option><option value="Ambos">Franco + Agustín</option></select>
-        </div>
-        <div class="fgrp"><label class="flbl">Prioridad</label>
-          <select id="t-prio" class="fc"><option value="baja">🟢 Baja</option><option value="media" selected>🟡 Media</option><option value="alta">🟠 Alta</option><option value="urgente">🔴 Urgente</option></select>
-        </div>
-        <div class="fgrp"><label class="flbl">Estado</label>
-          <select id="t-estado" class="fc"><option value="pendiente">⏳ Pendiente</option><option value="en-progreso">🔄 En progreso</option><option value="esperando">⏸ Esperando</option><option value="completada">✅ Completada</option><option value="cancelada">❌ Cancelada</option></select>
-        </div>
-        <div class="fgrp"><label class="flbl">Fecha vencimiento</label><input id="t-vence" class="fc" type="date"></div>
-        <div class="fgrp"><label class="flbl">Etiquetas</label><input id="t-tags" class="fc" placeholder="reforma, cliente, urgente..."></div>
-        <div class="fgrp"><label class="flbl">Proyecto asociado</label>
-          <select id="t-proyecto" class="fc"><option value="">— Sin proyecto —</option></select>
-        </div>
-        <div class="fgrp" style="grid-column:1/-1">
-          <label class="flbl">Dependencias (tareas que deben completarse antes)</label>
-          <div id="t-deps-badges" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;min-height:20px"></div>
-          <select id="t-deps-sel" class="fc" onchange="addDepFromSel(this.value)">
-            <option value="">+ Añadir tarea dependiente...</option>
-          </select>
-        </div>
-        <div class="fgrp" style="grid-column:1/-1"><label class="flbl">Comentario rápido</label><input id="t-comentario" class="fc" placeholder="Nota rápida..."></div>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--g200)">
-        <button class="btn btn-o" onclick="closeTareaModal()">Cancelar</button>
-        <button class="btn btn-g" onclick="saveTarea()">💾 Guardar tarea</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ MODAL TUTORIAL ICS ═══ -->
-<div id="modal-ics-tutorial" class="modal-bg">
-  <div class="modal-box" style="max-width:560px">
-    <div class="mhead"><h3>📅 Cómo sincronizar con tu calendario</h3><button class="mcls" onclick="document.getElementById('modal-ics-tutorial').classList.remove('open')">×</button></div>
-    <div class="mbody">
-      <div style="background:var(--cream);border-radius:8px;padding:14px;margin-bottom:14px">
-        <div style="font-weight:700;margin-bottom:8px">📱 iPhone / iPad (Apple Calendar)</div>
-        <ol style="font-size:13px;color:var(--g600);line-height:1.8;margin:0;padding-left:18px">
-          <li>Descarga el archivo <strong>.ics</strong> con el botón "Exportar .ics"</li>
-          <li>Abre el archivo desde Archivos o el email</li>
-          <li>iOS pregunta si quieres añadirlo al calendario — toca <strong>Añadir todos</strong></li>
-        </ol>
-      </div>
-      <div style="background:var(--cream);border-radius:8px;padding:14px;margin-bottom:14px">
-        <div style="font-weight:700;margin-bottom:8px">📅 Google Calendar</div>
-        <ol style="font-size:13px;color:var(--g600);line-height:1.8;margin:0;padding-left:18px">
-          <li>Descarga el archivo <strong>.ics</strong></li>
-          <li>Ve a <strong>calendar.google.com</strong></li>
-          <li>Configuración (⚙️) → Importar y exportar → <strong>Importar</strong></li>
-          <li>Selecciona el archivo .ics descargado → <strong>Importar</strong></li>
-        </ol>
-      </div>
-      <div style="background:rgba(196,168,130,.12);border-radius:8px;padding:12px;font-size:12px;color:var(--slate)">
-        💡 <strong>Exportar todo .ics</strong> incluye tareas, eventos personalizados e inicios/fines de proyectos. Las tareas urgentes aparecen con prefijo 🔴. Los eventos con hora aparecen como eventos con hora en tu calendario.
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ MODAL EVENTO ═══ -->
-<div id="modal-evento" class="modal-bg">
-  <div class="modal-box" style="max-width:580px">
-    <div class="mhead"><h3 id="modal-evento-title">Nuevo evento</h3><button class="mcls" onclick="closeEventoModal()">×</button></div>
-    <div class="mbody">
-      <input type="hidden" id="evento-edit-id">
-      <div class="fg fg2">
-        <div class="fgrp" style="grid-column:1/-1">
-          <label class="flbl">Título del evento *</label>
-          <input id="ev-titulo" class="fc" placeholder="Visita obra, Inicio presupuesto, Pago proveedor...">
-        </div>
-        <div class="fgrp">
-          <label class="flbl">Tipo de evento</label>
-          <select id="ev-tipo" class="fc">
-            <option value="visita">👁 Visita / Inspección</option>
-            <option value="presupuesto">📋 Inicio presupuesto</option>
-            <option value="inicio-obra">🏗️ Inicio de obra</option>
-            <option value="fin-obra">🏁 Fin de obra</option>
-            <option value="pago">💸 Pago / Cobro</option>
-            <option value="reunion">🤝 Reunión</option>
-            <option value="entrega">📦 Entrega / Recepción</option>
-            <option value="otro">📌 Otro</option>
-          </select>
-        </div>
-        <div class="fgrp">
-          <label class="flbl">Proyecto asociado</label>
-          <select id="ev-proyecto" class="fc"><option value="">— Sin proyecto —</option></select>
-        </div>
-        <div class="fgrp">
-          <label class="flbl">Fecha *</label>
-          <input id="ev-fecha" class="fc" type="date">
-        </div>
-        <div class="fgrp">
-          <label class="flbl">Hora (opcional)</label>
-          <input id="ev-hora" class="fc" type="time" placeholder="09:00">
-        </div>
-        <div class="fgrp">
-          <label class="flbl">Importe (si aplica)</label>
-          <input id="ev-importe" class="fc" type="number" min="0" step="0.01" placeholder="0.00">
-        </div>
-        <div class="fgrp">
-          <label class="flbl">Responsable</label>
-          <select id="ev-resp" class="fc">
-            <option>Agustín</option><option>Franco</option><option>ObraNord</option>
-          </select>
-        </div>
-        <div class="fgrp" style="grid-column:1/-1">
-          <label class="flbl">Notas / descripción</label>
-          <textarea id="ev-notas" class="fc" style="min-height:65px" placeholder="Detalles del evento..."></textarea>
-        </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--g200)">
-        <button id="ev-delete-btn" class="btn btn-d btn-s" style="display:none" onclick="deleteEvento()">🗑 Eliminar</button>
-        <div style="display:flex;gap:10px;margin-left:auto">
-          <button class="btn btn-o" onclick="closeEventoModal()">Cancelar</button>
-          <button class="btn btn-g" onclick="saveEvento()">💾 Guardar evento</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ ÓRDENES DE TRABAJO ═══════════════ -->
 <div id="s-ordenes" class="sec">
   <div class="ph">
     <div>
@@ -3087,9 +2910,7 @@ function showSec(id) {
   }
   if (id==='nueva-proforma') { const n=document.getElementById('pf-num'); if(n) n.value=getNextDocNum('proforma'); populateClienteSelects(); populateProyectoSelects(); }
   if (id==='nueva-rectificativa') { const n=document.getElementById('rf-num'); if(n) n.value=getNextDocNum('rectificativa'); populateRectificativaOriginalSel(); }
-  if (id==='pres-pendientes') renderPresPendientes();
   if (id==='ordenes') renderOrdenes();
-  if (id==='fac-pendientes') renderFacPendientes();
 }
 
 function switchTab(el, tabId) {
@@ -6197,7 +6018,7 @@ function updateDashboard() {
       const overdueHtml = `<div style="background:rgba(193,18,31,.1);border-left:3px solid var(--err);padding:10px 12px;border-radius:6px;margin-bottom:10px;font-size:13px">
         <strong style="color:var(--err)">⚠️ ${vencidasFacs.length} factura${vencidasFacs.length>1?'s':''} vencida${vencidasFacs.length>1?'s':''}</strong> · 
         Total pendiente: <strong>€${vencidasFacs.reduce((s,d)=>{const p=(d.pagos||[]).reduce((ss,pg)=>ss+pg.importe,0);return s+d.total-p;},0).toFixed(2)}</strong>
-        <button class="btn btn-o btn-s" style="margin-left:8px;padding:3px 10px;color:var(--err);border-color:var(--err)" onclick="showSec('fac-pendientes')">Ver →</button>
+        <button class="btn btn-o btn-s" style="margin-left:8px;padding:3px 10px;color:var(--err);border-color:var(--err)" onclick="showSec('historial')">Ver historial →</button>
       </div>`;
       alertDiv.insertAdjacentHTML('afterbegin', overdueHtml);
     }
@@ -7008,82 +6829,7 @@ function exportMod303() {
 // ═══════════════════════════════════════════════════════
 // PRESUPUESTOS PENDIENTES
 // ═══════════════════════════════════════════════════════
-function renderPresPendientes() {
-  // Show ALL non-rejected, non-verified budgets
-  const pendientes = documents.filter(d =>
-    d.type === 'presupuesto' &&
-    d.estado !== 'Rechazado' &&
-    d.estado !== 'Cancelado'
-  );
-
-  const pagados = pendientes.filter(d => d.estadoPago === 'PAGADO');
-  const parciales = pendientes.filter(d => d.estadoPago === 'PAGADO PARCIALMENTE');
-  const sinPagar = pendientes.filter(d => !d.estadoPago || d.estadoPago === 'FALTA POR PAGAR');
-
-  const totalPend = pendientes.reduce((s,d) => {
-    const pagado = (d.pagosAnticipo||[]).reduce((ss,p)=>ss+p.cantidad,0);
-    return s + ((d.total||0) - pagado);
-  },0);
-
-  const el=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-  el('kpi-pres-pend', sinPagar.length);
-  el('kpi-pres-parcial', parciales.length);
-  el('kpi-pres-pagado', pagados.length);
-  el('kpi-pres-importe', '€'+totalPend.toFixed(2));
-
-  const tbody = document.getElementById('pres-pend-tbody');
-  if(!tbody) return;
-  if(!tbody._delegated) {
-    tbody._delegated = true;
-    tbody.addEventListener('click', function(e) {
-      const btn = e.target.closest('[data-action]');
-      if(!btn) return;
-      const id = btn.getAttribute('data-id');
-      const action = btn.getAttribute('data-action');
-      if(action==='pago-pres') registrarPagoPresup(id);
-      if(action==='facturar-pres') enviarAFacturaPendiente(id);
-      if(action==='ver-pres') verDetalleDoc(id);
-      if(action==='edit-pres') editarPresupuestoDesdeHistorial(id);
-      if(action==='del-pres') borrarDocHistorial(id,'presupuesto');
-    });
-  }
-  if(!pendientes.length) {
-    tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--ok)">✅ Sin presupuestos pendientes</td></tr>';
-    return;
-  }
-
-  const estadoPagoMap = {
-    'PAGADO': {badge:'bsuc', icon:'✅'},
-    'FALTA POR PAGAR': {badge:'berr', icon:'🔴'},
-    'PAGADO PARCIALMENTE': {badge:'bwrn', icon:'🟡'}
-  };
-
-  tbody.innerHTML = pendientes.map(d=>{
-    const pagado=(d.pagosAnticipo||[]).reduce((s,p)=>s+p.cantidad,0);
-    const pendiente=(d.total||0)-pagado;
-    const estadoPago = d.estadoPago || (pagado>=(d.total||0)*0.99 ? 'PAGADO' : pagado>0 ? 'PAGADO PARCIALMENTE' : 'FALTA POR PAGAR');
-    const epInfo = estadoPagoMap[estadoPago] || {badge:'bgry', icon:'❓'};
-    const pr=proyectos.find(pr=>pr.presRef===d.num||pr.facRef===d.num);
-    return `<tr>
-      <td>${pr?'<span class="badge bgry">'+pr.codigo+'</span>':'—'}</td>
-      <td><strong>${d.num}</strong></td>
-      <td>${d.cliente||'—'}</td>
-      <td>€${(d.total||0).toFixed(2)}</td>
-      <td style="color:var(--ok)">€${pagado.toFixed(2)}</td>
-      <td style="color:${pendiente>0?'var(--err)':'var(--ok)'}"><strong>€${pendiente.toFixed(2)}</strong></td>
-      <td><span class="badge ${epInfo.badge}">${epInfo.icon} ${estadoPago}</span></td>
-      <td class="m">${d.fecha||'—'}</td>
-      <td style="white-space:nowrap;display:flex;gap:3px;flex-wrap:wrap">
-      <td style="white-space:nowrap;display:flex;gap:3px;flex-wrap:wrap">
-        <button class="btn btn-o btn-s" style="padding:4px 8px" data-action="pago-pres" data-id="${d.id}" title="Registrar pago">💳</button>
-        ${estadoPago==='PAGADO'?'<button class="btn btn-g btn-s" style="padding:4px 8px" data-action="facturar-pres" data-id="'+d.id+'" title="Crear factura">🧾 Facturar</button>':''}
-        <button class="btn btn-o btn-s" style="padding:4px 8px" data-action="ver-pres" data-id="${d.id}" title="Ver detalle">🔍</button>
-        <button class="btn btn-o btn-s" style="padding:4px 8px" data-action="edit-pres" data-id="${d.id}" title="Editar presupuesto">✏️</button>
-        <button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer" data-action="del-pres" data-id="${d.id}" title="Eliminar">🗑</button>
-    </tr>`;
-  }).join('');
-}
-
+function renderPresPendientes() { /* section removed */ }
 function registrarPagoPresup(docId) {
   const doc=documents.find(function(d){ return String(d.id)===String(docId) || d.id===docId; }); if(!doc){ showToast('Documento no encontrado','er'); return; }
   const pagado=(doc.pagosAnticipo||[]).reduce((s,p)=>s+p.cantidad,0);
@@ -7117,113 +6863,7 @@ function enviarAFacturaPendiente(docId) {
 // ═══════════════════════════════════════════════════════
 // FACTURAS PENDIENTES
 // ═══════════════════════════════════════════════════════
-function renderFacPendientes() {
-  // Facturas emitidas — todos los estados relevantes
-  const ESTADOS_CANCELADOS = ['Cancelado','Anulado','Rechazado'];
-  const allFacturas = documents.filter(function(d){
-    return d.type==='factura' && !ESTADOS_CANCELADOS.includes(d.estado);
-  });
-  // Calcular estado real de cobro basado en pagos registrados
-  allFacturas.forEach(function(d){
-    const cobrado=(d.pagos||[]).reduce(function(s,p){return s+(p.importe||0);},0);
-    if(cobrado>=(d.total||0)*0.999 && cobrado>0) {
-      if(d.estado!=='Cobrado'&&d.estado!=='Verificado en banco') d.estado='Cobrado';
-    } else if(cobrado>0 && d.estado!=='Parcialmente cobrado') {
-      d.estado='Parcialmente cobrado';
-    } else if(cobrado===0 && !['Cobrado','Verificado en banco','Parcialmente cobrado'].includes(d.estado)) {
-      d.estado='Pendiente de cobro';
-    }
-  });
-  const facPend = allFacturas.filter(function(d){return d.estado==='Pendiente de cobro';});
-  const facParcial = allFacturas.filter(function(d){return d.estado==='Parcialmente cobrado';});
-  const facVerif = allFacturas.filter(function(d){return d.estado==='Verificado en banco';});
-  const facCobradas = allFacturas.filter(function(d){return d.estado==='Cobrado';});
-  const kFP=document.getElementById('kpi-fac-pend'); if(kFP) kFP.textContent=facPend.length;
-  const kFPar=document.getElementById('kpi-fac-parcial'); if(kFPar) kFPar.textContent=facParcial.length;
-  const kFVer=document.getElementById('kpi-fac-verif'); if(kFVer) kFVer.textContent=facVerif.length;
-  const totalPend=facPend.concat(facParcial).reduce(function(s,d){
-    const cobrado=(d.pagos||[]).reduce(function(ss,p){return ss+(p.importe||0);},0);
-    return s+Math.max(0,(d.total||0)-cobrado);
-  },0);
-  const kFI=document.getElementById('kpi-fac-importe'); if(kFI) kFI.textContent='€'+totalPend.toFixed(2);
-
-  // Tab 1: TODAS las facturas (ordenadas: pendientes primero, cobradas al final)
-  const tb1=document.getElementById('fac-pend-cobro-tbody');
-  const allFacs=[...facPend, ...facParcial, ...facVerif, ...facCobradas];
-  if(tb1) {
-    // Always fresh listener — clone removes old ones
-    const tb1New = tb1.cloneNode(false);
-    tb1.parentNode.replaceChild(tb1New, tb1);
-    const tb1 = tb1New;
-    tb1.addEventListener('click', function(e) {
-      const btn = e.target.closest('[data-action]');
-      if(!btn) return;
-      const id = btn.getAttribute('data-id');
-      const action = btn.getAttribute('data-action');
-      if(action==='cobrar-fac')    openPagoFacModal(id);
-      if(action==='pdf-doc')       generatePDFFromDoc(id);
-      if(action==='verificar-fac') verificarFactura(id);
-      if(action==='cerrar-fac')    marcarFacturaCobrada(id);
-      if(action==='edit-fac')      editarFacturaDesdeHistorial(id);
-      if(action==='to-proforma')   crearProformaDesdeFactura(id);
-      if(action==='del-fac')       confirmarBorrarFactura(id);
-    });
-    tb1.innerHTML = allFacs.length ? allFacs.map(function(d) {
-      const cobrado=(d.pagos||[]).reduce(function(s,p){return s+(p.importe||0);},0);
-      const pend=(d.total||0)-cobrado;
-      const pr=proyectos.find(function(p){return p.facRef===d.num;});
-      const isVerif=d.estado==='Verificado en banco';
-      const estBadge=d.estado==='Cobrado'?'bsuc':d.estado==='Parcialmente cobrado'?'bwrn':isVerif?'bsuc':'berr';
-      return '<tr'+(isVerif?' style="background:rgba(45,106,79,.05)"':'')+'>'+
-        '<td>'+(pr?'<span class="badge bgry">'+pr.codigo+'</span>':'—')+'</td>'+
-        '<td><strong>'+escapeHtml(d.num||'')+'</strong></td>'+
-        '<td>'+escapeHtml(d.cliente||'—')+'</td>'+
-        '<td>€'+(d.total||0).toFixed(2)+'</td>'+
-        '<td style="color:var(--ok)">€'+cobrado.toFixed(2)+'</td>'+
-        '<td style="color:'+(pend>0?'var(--err)':'var(--ok)')+';"><strong>€'+pend.toFixed(2)+'</strong></td>'+
-        '<td><span class="badge '+estBadge+'">'+escapeHtml(d.estado||'')+'</span></td>'+
-        '<td class="m">'+(d.vencimiento||'—')+'</td>'+
-        '<td style="white-space:nowrap;display:flex;gap:3px;align-items:center;flex-wrap:wrap">'+
-          (!isVerif?'<button class="btn btn-o btn-s" style="padding:4px 8px" data-action="cobrar-fac" data-id="'+d.id+'">💳 Cobrar</button>':'')+
-          (!isVerif?'<button class="btn btn-g btn-s" style="padding:4px 8px;background:var(--ok);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:11px;font-weight:600" data-action="verificar-fac" data-id="'+d.id+'">✅ Verificar</button>':'')+
-          (isVerif?'<span class="badge bsuc" style="font-size:10px">✅ En cuenta</span>':'')+
-          (isVerif?'<button class="btn btn-o btn-s" style="padding:4px 8px" data-action="cerrar-fac" data-id="'+d.id+'">✔ Cerrar</button>':'')+
-          '<button class="btn btn-o btn-s" style="padding:4px 8px" data-action="pdf-doc" data-id="'+d.id+'" title="Descargar PDF">⬇ PDF</button>'+
-          '<button class="btn btn-o btn-s" style="padding:4px 8px" data-action="edit-fac" data-id="'+d.id+'" title="Editar factura">✏️</button>'+
-          '<button class="btn btn-o btn-s" style="padding:4px 8px;font-size:11px" data-action="to-proforma" data-id="'+d.id+'" title="Crear proforma desde esta factura">📄→PRO</button>'+
-          '<button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer" data-action="del-fac" data-id="'+d.id+'" title="Anular">🗑</button>'+
-        '</td>'+
-      '</tr>';
-    }).join('') : '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--ok)">✅ Sin facturas pendientes de cobro</td></tr>';
-  }
-
-  // Tab 2: proyectos listos para facturar
-  const listos=proyectos.filter(p=>
-    p.estado==='Pendiente de facturación'||
-    p.estado==='Finalizado'||
-    (p.estado==='Facturado'&&!documents.find(d=>d.num===p.facRef&&d.type==='factura'))
-  );
-  const tb2=document.getElementById('pend-facturar-tbody');
-  if(tb2) {
-    tb2.innerHTML=listos.length?listos.map(p=>{
-      const anticipo=documents.filter(d=>d.presRef===p.presRef||d.num===p.presRef)
-        .reduce((s,d)=>(d.pagosAnticipo||[]).reduce((ss,pg)=>ss+pg.cantidad,0)+s,0);
-      return `<tr>
-        <td><span class="badge bgry">${p.codigo||'—'}</span></td>
-        <td><strong>${p.nombre}</strong></td>
-        <td>${p.clienteNombre||'—'}</td>
-        <td>€${(p.importePres||0).toFixed(2)}</td>
-        <td style="color:var(--ok)">€${anticipo.toFixed(2)}</td>
-        <td><span class="badge bsuc">${p.estado}</span></td>
-        <td>
-          <button class="btn btn-p btn-s" style="padding:4px 10px" onclick="crearFacturaDesdeProyecto('${p.codigo||p.id}')">🧾 Facturar</button>
-        </td>
-      </tr>`;
-    }).join(''):
-    '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--slate)">Sin proyectos pendientes de facturar</td></tr>';
-  }
-}
-
+function renderFacPendientes()  { /* section removed */ }
 function enviarRecordatorioCobro(docId) {
   const doc = documents.find(d=>String(d.id)===String(docId));
   if(!doc) return;
@@ -7397,31 +7037,83 @@ function renderPagosEditor(doc) {
   const resumenEl = document.getElementById('f-resumen-importe');
   if(!resumenEl) return;
   const pagos = doc.pagos||[];
-  const cobrado = pagos.reduce(function(s,p){return s+(p.importe||0);},0);
-  const pendiente = Math.max(0,(doc.total||0)-cobrado);
+  const cobrado = Math.round(pagos.reduce(function(s,p){return s+(p.importe||0);},0)*100)/100;
+  const pendiente = Math.max(0,Math.round(((doc.total||0)-cobrado)*100)/100);
   resumenEl.style.display = '';
-  let html = '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:8px">'
-    + '<span><strong>Total factura:</strong> €'+(doc.total||0).toFixed(2)+'</span>'
+  let html = '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
+    + '<span><strong>Total:</strong> €'+(doc.total||0).toFixed(2)+'</span>'
     + '<span><strong style="color:var(--ok)">Cobrado:</strong> €'+cobrado.toFixed(2)+'</span>'
-    + '<span><strong style="color:'+(pendiente>0?'var(--err)':'var(--ok)')+'">Pendiente:</strong> €'+pendiente.toFixed(2)+'</span>'
+    + '<span><strong style="color:'+(pendiente>0?'var(--err)':'var(--ok)') +'">Pendiente:</strong> €'+pendiente.toFixed(2)+'</span>'
+    + (pendiente<=0.01 ? '<span style="background:var(--okbg);color:var(--ok);border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700">✅ Cobrada</span>' : '')
     + '</div>';
   if(pagos.length) {
-    html += '<div style="font-size:11px;color:var(--slate);margin-bottom:6px">Pagos registrados (editable):</div>';
-    html += '<div style="display:flex;flex-direction:column;gap:6px">';
+    html += '<div style="font-size:11px;font-weight:700;color:var(--slate);margin-bottom:6px">Pagos registrados</div>';
+    html += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">';
     pagos.forEach(function(p, i) {
-      html += '<div style="display:flex;gap:6px;align-items:center;background:#fff;border:1px solid var(--g200);border-radius:8px;padding:6px 8px">'
-        + '<input type="date" class="fc" style="width:130px;padding:4px 6px;font-size:12px" value="'+(p.fecha||'')+'" onchange="updatePagoFactura(\''+doc.id+'\','+i+',\'fecha\',this.value)">'
-        + '<input type="number" step="0.01" class="fc" style="width:110px;padding:4px 6px;font-size:12px" value="'+(p.importe||0)+'" onchange="updatePagoFactura(\''+doc.id+'\','+i+',\'importe\',this.value)">'
-        + '<select class="fc" style="width:130px;padding:4px 6px;font-size:12px" onchange="updatePagoFactura(\''+doc.id+'\','+i+',\'medio\',this.value)">'
-        +   ['Transferencia','Efectivo','Bizum','Tarjeta'].map(function(m){return '<option'+(p.medio===m?' selected':'')+'>'+m+'</option>';}).join('')
+      const med = p.medio||'Transferencia';
+      html += '<div style="display:flex;gap:6px;align-items:center;background:#f8f9fa;border:1px solid var(--g200);border-radius:8px;padding:7px 10px">'
+        + '<input type="date" class="fc" style="width:130px;padding:4px 6px;font-size:12px" value="'+(p.fecha||'')+'" onchange="updatePagoFactura(\"'+doc.id+'\",'+i+',\"fecha\",this.value)">'
+        + '<input type="number" step="0.01" min="0" class="fc" style="width:110px;padding:4px 6px;font-size:12px;font-weight:700;color:var(--ok)" value="'+(p.importe||0)+'" onchange="updatePagoFactura(\"'+doc.id+'\",'+i+',\"importe\",this.value)">'
+        + '<select class="fc" style="width:140px;padding:4px 6px;font-size:12px" onchange="updatePagoFactura(\"'+doc.id+'\",'+i+',\"medio\",this.value)">'
+        + ['Transferencia','Efectivo','Bizum','Tarjeta'].map(function(m){return '<option'+(med===m?' selected':'')+'>'+m+'</option>';}).join('')
         + '</select>'
-        + '<button type="button" class="btn btn-s" style="padding:3px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer;font-size:11px" onclick="deletePagoFactura(\''+doc.id+'\','+i+')">🗑</button>'
+        + '<input type="text" class="fc" style="flex:1;padding:4px 6px;font-size:11px" placeholder="Ref./notas" value="'+(p.notas||'')+'" onchange="updatePagoFactura(\"'+doc.id+'\",'+i+',\"notas\",this.value)">'
+        + '<button type="button" class="btn btn-s" style="padding:4px 10px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer" onclick="deletePagoFactura(\"'+doc.id+'\",'+i+')">\U0001f5d1</button>'
         + '</div>';
     });
     html += '</div>';
   }
+  const hoy = new Date().toISOString().split('T')[0];
+  html += '<div style="border:2px dashed var(--g200);border-radius:8px;padding:10px;background:#fafafa">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:8px">+ Registrar nuevo cobro</div>'
+    + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+    + '<input type="date" id="npf-fecha-'+doc.id+'" class="fc" style="width:140px;padding:6px" value="'+hoy+'">'
+    + '<input type="number" step="0.01" min="0" id="npf-importe-'+doc.id+'" class="fc" style="width:130px;padding:6px;font-weight:700" placeholder="Importe" value="'+(pendiente>0?pendiente.toFixed(2):'')+' ">'
+    + '<select id="npf-medio-'+doc.id+'" class="fc" style="width:150px;padding:6px">'
+    + '<option>Transferencia</option><option>Efectivo</option><option>Bizum</option><option>Tarjeta</option>'
+    + '</select>'
+    + '<input type="text" id="npf-notas-'+doc.id+'" class="fc" style="flex:1;min-width:100px;padding:6px" placeholder="Referencia / notas">'
+    + '<button type="button" class="btn btn-g" style="padding:6px 16px;white-space:nowrap" onclick="addPagoFactura(\"'+doc.id+'\")">&#x1F4B0; A&#xF1;adir pago</button>'
+    + '</div></div>';
   resumenEl.innerHTML = html;
 }
+
+function addPagoFactura(docId) {
+  const doc = documents.find(function(d){return String(d.id)===String(docId);});
+  if(!doc) return;
+  const fecha   = document.getElementById('npf-fecha-'+docId)?.value || new Date().toISOString().split('T')[0];
+  const importe = parseFloat(document.getElementById('npf-importe-'+docId)?.value||0);
+  const medio   = document.getElementById('npf-medio-'+docId)?.value || 'Transferencia';
+  const notas   = document.getElementById('npf-notas-'+docId)?.value || '';
+  if(!importe || importe <= 0) { showToast('Indica el importe del pago','er'); return; }
+  if(!doc.pagos) doc.pagos = [];
+  doc.pagos.push({fecha, importe, medio, notas});
+  const cobrado = doc.pagos.reduce(function(s,p){return s+(p.importe||0);},0);
+  if(cobrado >= (doc.total||0)*0.999 && cobrado>0) doc.estado = 'Cobrado';
+  else if(cobrado>0) doc.estado = 'Parcialmente cobrado';
+  else doc.estado = 'Pendiente de cobro';
+  const festado = document.getElementById('f-estado');
+  if(festado) festado.value = doc.estado;
+  // Register in Tesoreria
+  tesoreria.unshift({
+    id: generateId(), tipo: 'ingreso', fecha, medio,
+    concepto: 'Cobro '+doc.num+' — '+(doc.cliente||'')+(notas?' · '+notas:''),
+    importe, estado: 'Realizado',
+    contraparte: doc.cliente||'', ref: doc.num||'',
+    proyCod: doc.proyCod||'', _docId: String(doc.id)
+  });
+  if(cobrado >= (doc.total||0)*0.999) {
+    tesoreria = tesoreria.filter(function(t){
+      return !(t._autoPendiente && t._docId===String(doc.id) && t.estado==='Pendiente');
+    });
+  }
+  syncProyectoFromDoc(doc);
+  saveData('add_pago_factura','Factura '+doc.num+' pago EUR'+importe.toFixed(2));
+  renderPagosEditor(doc);
+  renderFacPendientes(); renderHistory(); renderTesoreria(); updateDashboard();
+  showToast('Pago de EUR'+importe.toFixed(2)+' registrado via '+medio+' - Estado: '+doc.estado,'ok');
+}
+
 
 function updatePagoFactura(docId, idx, field, value) {
   const doc = documents.find(function(d){return String(d.id)===String(docId);});
