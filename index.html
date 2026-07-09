@@ -2453,9 +2453,11 @@ function confirmarBorrarFactura(docId) {
     if(!confirm('¿Eliminar ' + (doc.num||'este documento') + cliente + importe + '?\n\nEsta acción NO se puede deshacer.')) return;
   }
   AuditServiceV2.log('DELETE','documents',doc,null);
-  documents = documents.filter(d=>String(d.id)!==String(docId));
-  saveData(); renderHistory(); updateDashboard();
-  showToast('Documento eliminado del historial');
+  documents = documents.filter(function(d){return String(d.id)!==String(docId);});
+  // Delete from Supabase so it doesn't reappear on reload
+  sbDelete('documentos', docId);
+  saveData(); renderHistory(); renderPresPendientes(); renderFacPendientes(); updateDashboard();
+  showToast('Documento '+(doc.num||'')+ ' eliminado del historial','ok');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2497,6 +2499,16 @@ async function sbFetch(table, method, body, query) {
   }
   if(method==='GET') return res.json();
   return true;
+}
+
+async function sbDelete(table, id) {
+  try {
+    await sbFetch(table, 'DELETE', null, '?id=eq.'+encodeURIComponent(String(id)));
+    return true;
+  } catch(e) {
+    console.warn('[Supabase] sbDelete failed:', table, id, e.message);
+    return false;
+  }
 }
 
 async function sbUpsert(table, rows) {
@@ -2669,11 +2681,11 @@ async function saveToSupabase(payload) {
     // 7. GASTOS RECURRENTES
     if(payload.gastoRecurrentes && payload.gastoRecurrentes.length) {
       await sbUpsert('gastos_recurrentes', payload.gastoRecurrentes.map(function(g){ return {
-        id:String(g.id||Math.random()), descripcion:g.desc||g.descripcion||'',
-        cat:g.cat||'', prov:g.prov||'', importe:g.importe||0,
-        iva_pct:g.ivaPct||21, total:g.total||0, metodo:g.metodo||'',
-        pagador:g.pagador||'', dia_mes:g.diaMes||1, activo:g.activo!==false,
-        updated_at:new Date().toISOString()
+        id:String(g.id||generateId()), descripcion:g.desc||g.descripcion||'',
+        cat:g.cat||'Operativa', prov:g.prov||'', importe:g.importe||0,
+        iva_pct:g.ivaPct||21, total:g.total||g.importe||0, metodo:g.metodo||'',
+        pagador:g.pagador||'ObraNord', dia_mes:parseInt(g.dia||g.diaMes||1),
+        activo:g.activo!==false, updated_at:new Date().toISOString()
       }; }));
     }
 
@@ -2807,17 +2819,24 @@ async function loadFromSupabase() {
         rectificaRef:d.rectifica_ref, _convertida:d._convertida, _archived:d._archived
       }; }),
       gastos: (gasRows||[]).map(function(g){ return {
-        id:g.id, fecha:g.fecha, cat:g.cat, desc:g.descripcion,
-        prov:g.prov, provCod:g.prov_cod, factura:g.factura,
-        importe:g.importe, ivaPct:g.iva_pct, irpfPct:g.irpf_pct,
-        retencion:g.retencion, total:g.total, metodo:g.metodo,
-        pagador:g.pagador, estado:g.estado, proyCod:g.proy_cod,
-        notas:g.notas, tipoGasto:g.tipo_gasto||'empresa'
+        id:g.id, fecha:g.fecha||'', cat:g.cat||'Operativa', desc:g.descripcion||g.desc||'',
+        prov:g.prov||'', provCod:g.prov_cod||'', factura:g.factura||'',
+        importe:parseFloat(g.importe||0), ivaPct:parseFloat(g.iva_pct||21), irpfPct:parseFloat(g.irpf_pct||0),
+        retencion:parseFloat(g.retencion||0), total:parseFloat(g.total||0), metodo:g.metodo||'',
+        pagador:g.pagador||'ObraNord', estado:g.estado||'Pagado', proyCod:g.proy_cod||'',
+        notas:g.notas||'', tipoGasto:g.tipo_gasto||'empresa'
       }; }),
       gastoRecurrentes: (grRows||[]).map(function(g){ return {
-        id:g.id, desc:g.descripcion, cat:g.cat, prov:g.prov,
-        importe:g.importe, ivaPct:g.iva_pct, total:g.total,
-        metodo:g.metodo, pagador:g.pagador, diaMes:g.dia_mes, activo:g.activo
+        id:g.id, desc:g.descripcion||g.desc||'', descripcion:g.descripcion||g.desc||'',
+        cat:g.cat||'Operativa', prov:g.prov||'',
+        importe:parseFloat(g.importe||0), ivaPct:parseFloat(g.iva_pct||21),
+        total:parseFloat(g.total||g.importe||0),
+        metodo:g.metodo||'', pagador:g.pagador||'ObraNord',
+        diaMes:g.dia_mes||1, dia:String(g.dia_mes||1),
+        frecuencia:g.frecuencia||'mensual',
+        activo:g.activo!==false,
+        proximaGen:g.proxima_gen||null, ultimaGen:g.ultima_gen||null,
+        tipoGasto:g.tipo_gasto||'empresa'
       }; }),
       ordenes: (ordRows||[]).map(function(o){ return {
         id:o.id, num:o.num, proyCod:o.proy_cod, proveedor:o.proveedor,
@@ -3308,22 +3327,23 @@ function procesarRecurrentes() {
       const nuevoGasto = {
         id:       generateId(),
         fecha:    proxima,
-        cat:      rec.cat,
-        desc:     rec.desc + ' (automático)',
+        cat:      rec.cat || 'Operativa',
+        desc:     (rec.desc || 'Gasto recurrente') + ' (automático)',
         prov:     rec.prov || '',
         provCod:  rec.provCod || '',
         factura:  '',
-        importe:  rec.importe,
-        ivaPct:   rec.ivaPct,
+        importe:  rec.importe || 0,
+        ivaPct:   rec.ivaPct || 21,
         irpfPct:  rec.irpfPct || 0,
-        retencion: rec.importe * (rec.irpfPct || 0) / 100,
-        total:    rec.total,
-        metodo:   rec.metodo,
-        pagador:  rec.pagador,
-        estado:   rec.estado,
+        retencion: (rec.importe || 0) * (rec.irpfPct || 0) / 100,
+        total:    rec.total || rec.importe || 0,
+        metodo:   rec.metodo || 'Tarjeta empresa',
+        pagador:  rec.pagador || 'ObraNord',
+        estado:   rec.estado || 'Pagado',
         proyCod:  rec.proyCod || '',
         notas:    rec.notas || '',
-        recId:    rec.id   // referencia al recurrente que lo generó
+        tipoGasto: rec.tipoGasto || 'empresa',
+        recId:    rec.id
       };
       gastos.unshift(nuevoGasto);
       AuditServiceV2.log('CREATE', 'gastos', null, nuevoGasto);
@@ -3362,10 +3382,10 @@ function renderGastosRecurrentes() {
   el.innerHTML = activos.map(r => `
     <div style="background:#fff;border:1px solid var(--g200);border-radius:10px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px;color:var(--dark)">${escapeHtml(r.desc)}</div>
+        <div style="font-weight:700;font-size:13px;color:var(--dark)">${escapeHtml(r.desc||r.descripcion||'Gasto recurrente')}</div>
         <div style="font-size:12px;color:var(--slate);margin-top:3px">
-          <span class="badge bgry">${FREQ_LABEL[r.frecuencia]||r.frecuencia}</span>
-          &nbsp;€${(r.total||0).toFixed(2)} · ${escapeHtml(r.cat)} · ${escapeHtml(r.metodo)}
+          <span class="badge bgry">${FREQ_LABEL[r.frecuencia]||r.frecuencia||'mensual'}</span>
+          &nbsp;€${(r.total||r.importe||0).toFixed(2)} · ${escapeHtml(r.cat||'')} · ${escapeHtml(r.metodo||'')}
           ${r.finRec ? ' · Hasta: '+r.finRec : ''}
         </div>
         <div style="font-size:11px;color:var(--gold);margin-top:4px">📅 Próxima generación: <strong>${r.proximaGen||'—'}</strong></div>
@@ -3520,7 +3540,8 @@ function saveGasto() {
 
 function deleteGasto(id) {
   if(!confirm('¿Eliminar este gasto?')) return;
-  gastos=gastos.filter(x=>String(x.id)!==String(id));
+  sbDelete('gastos', id);
+  gastos=gastos.filter(function(x){return String(x.id)!==String(id);});
   saveData();
   renderGastos();
   updateGastosKPIs();
@@ -5105,7 +5126,8 @@ function deleteCliente(id) {
   if(!confirm('¿Eliminar el cliente ' + cli.nombre + '? Esta acción no se puede deshacer.')) return;
   AuditServiceV2.log('DELETE', 'clientes', cli, null);
   AuditServiceV2.log('DELETE','clientes',cli,null);
-  clientes=clientes.filter(x=>String(x.id)!==String(id));
+  sbDelete('clientes', String(id));
+  clientes=clientes.filter(function(x){return String(x.id)!==String(id);});
   saveData(); renderClientes(); showToast('Cliente eliminado');
 }
 
@@ -5816,10 +5838,57 @@ function saveMovimiento() {
 }
 
 function deleteMovimiento(id) {
+  const sid = String(id);
+
+  // Case 2 FIRST: auto-generated from factura pagos (p_<docId>_<idx>)
+  // Don't confirm yet — show a better message with link to factura
+  if(sid.startsWith('p_')) {
+    const rest = sid.slice(2);
+    const lastUnderscore = rest.lastIndexOf('_');
+    const docId = rest.substring(0, lastUnderscore);
+    const idxStr = rest.substring(lastUnderscore+1);
+    const doc = documents.find(function(d){return String(d.id)===docId;});
+    if(doc) {
+      const msg = 'Este cobro viene de la factura ' + (doc.num||'') + ' (' + (doc.cliente||'') + '). Pulsa OK para eliminarlo, o Cancelar para abrir la factura y editar los pagos.';
+      if(!confirm(msg)) {
+        // Offer to open the factura
+        if(confirm('¿Abrir la factura ' + (doc.num||'') + ' para editarla?')) {
+          editarFacturaDesdeHistorial(doc.id);
+        }
+        return;
+      }
+      if(idxStr==='auto') {
+        doc.estado='Pendiente de cobro';
+      } else if(doc.pagos) {
+        const idx=parseInt(idxStr);
+        if(doc.pagos[idx]!==undefined) {
+          doc.pagos.splice(idx,1);
+          const cobrado=doc.pagos.reduce(function(s,p){return s+(p.importe||0);},0);
+          if(cobrado>=(doc.total||0)*0.999&&cobrado>0) doc.estado='Cobrado';
+          else if(cobrado>0) doc.estado='Parcialmente cobrado';
+          else doc.estado='Pendiente de cobro';
+        }
+      }
+      syncProyectoFromDoc(doc);
+      saveData('del_pago_tesoreria','Pago de '+doc.num+' eliminado desde Tesorería');
+      renderTesoreria(); renderFacPendientes(); renderHistory(); updateDashboard();
+      showToast('✅ Cobro de '+(doc.num||'')+ ' eliminado','ok');
+      return;
+    } else {
+      showToast('No se encontró la factura vinculada. Ve a Historial y edita los pagos manualmente.','er');
+      return;
+    }
+  }
+
+  // Case 3: gastos/OTs auto rows
+  if(sid.startsWith('g_')) { showToast('Este movimiento viene de un gasto. Edítalo en 💸 Gastos.','er'); return; }
+  if(sid.startsWith('ot_')) { showToast('Este movimiento viene de una OT. Gestiónalo en 💸 Gastos → Obra.','er'); return; }
+
   if(!confirm('¿Eliminar este movimiento?')) return;
   // Case 1: real manual tesoreria entry
   const tesEntry = tesoreria.find(function(x){return String(x.id)===String(id);});
   if(tesEntry) {
+    sbDelete('tesoreria', id);
     tesoreria=tesoreria.filter(function(x){return String(x.id)!==String(id);});
     // If linked to a factura's pago, also remove the matching pago so it doesn't reappear as 'auto'
     if(tesEntry._docId && tesEntry.tipo==='ingreso') {
@@ -5840,36 +5909,7 @@ function deleteMovimiento(id) {
     saveData(); renderTesoreria(); updateDashboard(); showToast('✅ Movimiento eliminado','ok');
     return;
   }
-  // Case 2: auto-generated cobro from a factura's pagos[] — id format p_<docId>_<idx> or p_<docId>_auto
-  if(String(id).indexOf('p_')===0) {
-    const rest = String(id).slice(2);
-    const lastUnderscore = rest.lastIndexOf('_');
-    const docId = rest.substring(0, lastUnderscore);
-    const idxStr = rest.substring(lastUnderscore+1);
-    const doc = documents.find(function(d){return String(d.id)===docId;});
-    if(doc) {
-      if(idxStr==='auto') {
-        doc.estado='Pendiente de cobro';
-      } else if(doc.pagos) {
-        const idx=parseInt(idxStr);
-        if(doc.pagos[idx]!==undefined) {
-          doc.pagos.splice(idx,1);
-          const cobrado=doc.pagos.reduce(function(s,p){return s+(p.importe||0);},0);
-          if(cobrado>=(doc.total||0)*0.999&&cobrado>0) doc.estado='Cobrado';
-          else if(cobrado>0) doc.estado='Parcialmente cobrado';
-          else doc.estado='Pendiente de cobro';
-        }
-      }
-      syncProyectoFromDoc(doc);
-      saveData('del_pago_tesoreria','Pago de '+doc.num+' eliminado desde Tesorería');
-      renderTesoreria(); renderFacPendientes(); renderHistory(); updateDashboard();
-      showToast('✅ Cobro de '+doc.num+' eliminado','ok');
-      return;
-    }
-  }
-  // Case 3: auto rows from gastos/OTs — not directly deletable from here
-  if(String(id).indexOf('g_')===0) { showToast('Este movimiento viene de un gasto. Edítalo o márcalo como Anulado en 💸 Gastos.','er'); return; }
-  if(String(id).indexOf('ot_')===0) { showToast('Este movimiento viene de una orden de trabajo. Gestiónalo en 💳 Pago a Proveedores.','er'); return; }
+
   // Fallback
   tesoreria=tesoreria.filter(function(x){return String(x.id)!==String(id);});
   saveData(); renderTesoreria(); updateDashboard(); showToast('✅ Movimiento eliminado','ok');
@@ -7490,14 +7530,13 @@ function borrarDocHistorial(docId, tipo) {
   const importe = doc.total ? ' · €' + doc.total.toFixed(2) : '';
   if(!confirm(`¿Eliminar ${label} ${doc.num}${cliente}${importe}?\n\nEsta acción NO se puede deshacer.`)) return;
   AuditServiceV2.log('DELETE','documents',doc,null);
-  documents=documents.filter(d=>String(d.id)!==String(docId));
-  // Remove auto-linked project if empty
-  const proj=proyectos.find(p=>p.presRef===doc.num||p.facRef===doc.num);
-  if(proj && !documents.find(d=>d.proyCod===proj.codigo)){
-    // optional: only remove if the project was auto-created
-  }
-  saveData(); renderHistory(); renderPresPendientes(); updateDashboard();
-  showToast(`${label.charAt(0).toUpperCase()+label.slice(1)} ${doc.num} eliminado`,'ok');
+  documents=documents.filter(function(d){return String(d.id)!==String(docId);});
+  // Delete from Supabase immediately
+  sbFetch('documentos','DELETE',null,'?id=eq.'+encodeURIComponent(String(docId)))
+    .then(function(){ console.log('[Supabase] Documento '+docId+' eliminado'); })
+    .catch(function(e){ console.warn('[Supabase] Error eliminando documento:', e.message); });
+  saveData(); renderHistory(); renderPresPendientes(); renderFacPendientes(); updateDashboard();
+  showToast((label.charAt(0).toUpperCase()+label.slice(1))+' '+doc.num+' eliminado','ok');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -8911,7 +8950,8 @@ function saveOT() {
 
 function deleteOT(id) {
   if(!confirm('¿Eliminar esta orden de trabajo?')) return;
-  ordenes = ordenes.filter(o=>o.id!==id);
+  sbDelete('ordenes', id);
+  ordenes = ordenes.filter(function(o){return o.id!==id;});
   saveData(); renderOrdenes(); showToast('OT eliminada');
 }
 
@@ -9293,6 +9333,7 @@ function liquidarDeuda(acreedor, montoMax) {
 
 function eliminarLiquidacion(id) {
   if(!confirm('¿Eliminar este registro de pago? La deuda volverá a aparecer como pendiente.')) return;
+  sbDelete('liquidaciones', id);
   liquidaciones = liquidaciones.filter(function(l){ return String(l.id)!==String(id); });
   localStorage.setItem('on_liquidaciones', JSON.stringify(liquidaciones));
   // Remove linked tesoreria entry too
