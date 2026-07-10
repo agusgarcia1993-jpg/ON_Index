@@ -2492,7 +2492,7 @@ async function saveToSupabase(payload) {
         id:String(g.id), fecha:g.fecha||'', cat:g.cat||'',
         descripcion:g.desc||g.descripcion||'',
         prov:g.prov||'', prov_cod:g.provCod||'', factura:g.factura||'',
-        importe:g.importe||0, iva_pct:g.ivaPct||21,
+        importe:g.importe||0, iva_pct:(g.ivaPct!=null?g.ivaPct:21),
         irpf_pct:g.irpfPct||0, retencion:g.retencion||0,
         total:g.total||0, metodo:g.metodo||g.medio||'',
         pagador:g.pagador||'ObraNord', estado:g.estado||'',
@@ -2506,7 +2506,7 @@ async function saveToSupabase(payload) {
       await sbUpsert('gastos_recurrentes', payload.gastoRecurrentes.map(function(g){ return {
         id:String(g.id||generateId()), descripcion:g.desc||g.descripcion||'',
         cat:g.cat||'Operativa', prov:g.prov||'', importe:g.importe||0,
-        iva_pct:g.ivaPct||21, total:g.total||g.importe||0, metodo:g.metodo||'',
+        iva_pct:(g.ivaPct!=null?g.ivaPct:21), total:g.total||g.importe||0, metodo:g.metodo||'',
         pagador:g.pagador||'ObraNord', dia_mes:parseInt(g.dia||g.diaMes||1),
         activo:g.activo!==false, updated_at:new Date().toISOString()
       }; }));
@@ -2644,7 +2644,7 @@ async function loadFromSupabase() {
       gastos: (gasRows||[]).map(function(g){ return {
         id:g.id, fecha:g.fecha||'', cat:g.cat||'Operativa', desc:g.descripcion||g.desc||'',
         prov:g.prov||'', provCod:g.prov_cod||'', factura:g.factura||'',
-        importe:parseFloat(g.importe||0), ivaPct:parseFloat(g.iva_pct||21), irpfPct:parseFloat(g.irpf_pct||0),
+        importe:parseFloat(g.importe||0), ivaPct:parseFloat(g.iva_pct!=null?g.iva_pct:21), irpfPct:parseFloat(g.irpf_pct||0),
         retencion:parseFloat(g.retencion||0), total:parseFloat(g.total||0), metodo:g.metodo||'',
         pagador:g.pagador||'ObraNord', estado:g.estado||'Pagado', proyCod:g.proy_cod||'',
         notas:g.notas||'', tipoGasto:g.tipo_gasto||'empresa'
@@ -2652,7 +2652,7 @@ async function loadFromSupabase() {
       gastoRecurrentes: (grRows||[]).map(function(g){ return {
         id:g.id, desc:g.descripcion||g.desc||'', descripcion:g.descripcion||g.desc||'',
         cat:g.cat||'Operativa', prov:g.prov||'',
-        importe:parseFloat(g.importe||0), ivaPct:parseFloat(g.iva_pct||21),
+        importe:parseFloat(g.importe||0), ivaPct:parseFloat(g.iva_pct!=null?g.iva_pct:21),
         total:parseFloat(g.total||g.importe||0),
         metodo:g.metodo||'', pagador:g.pagador||'ObraNord',
         diaMes:g.dia_mes||1, dia:String(g.dia_mes||1),
@@ -7036,29 +7036,30 @@ function editarPresupuestoDesdeHistorial(docId) {
 function renderPagosEditor(doc) {
   const resumenEl = document.getElementById('f-resumen-importe');
   if(!resumenEl) return;
+  resumenEl.setAttribute('data-edit-docid', String(doc.id));
   const pagos = doc.pagos||[];
   const cobrado = Math.round(pagos.reduce(function(s,p){return s+(p.importe||0);},0)*100)/100;
   const pendiente = Math.max(0,Math.round(((doc.total||0)-cobrado)*100)/100);
   resumenEl.style.display = '';
   let html = '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
-    + '<span><strong>Total:</strong> €'+(doc.total||0).toFixed(2)+'</span>'
-    + '<span><strong style="color:var(--ok)">Cobrado:</strong> €'+cobrado.toFixed(2)+'</span>'
-    + '<span><strong style="color:'+(pendiente>0?'var(--err)':'var(--ok)') +'">Pendiente:</strong> €'+pendiente.toFixed(2)+'</span>'
-    + (pendiente<=0.01 ? '<span style="background:var(--okbg);color:var(--ok);border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700">✅ Cobrada</span>' : '')
+    + '<span><strong>Total:</strong> \u20ac'+(doc.total||0).toFixed(2)+'</span>'
+    + '<span><strong style="color:var(--ok)">Cobrado:</strong> \u20ac'+cobrado.toFixed(2)+'</span>'
+    + '<span><strong style="color:'+(pendiente>0?'var(--err)':'var(--ok)')+'">Pendiente:</strong> \u20ac'+pendiente.toFixed(2)+'</span>'
+    + (pendiente<=0.01?'<span style="background:var(--okbg);color:var(--ok);border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700">\u2705 Cobrada</span>':'')
     + '</div>';
   if(pagos.length) {
     html += '<div style="font-size:11px;font-weight:700;color:var(--slate);margin-bottom:6px">Pagos registrados</div>';
     html += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">';
     pagos.forEach(function(p, i) {
       const med = p.medio||'Transferencia';
-      html += '<div style="display:flex;gap:6px;align-items:center;background:#f8f9fa;border:1px solid var(--g200);border-radius:8px;padding:7px 10px">'
-        + '<input type="date" class="fc" style="width:130px;padding:4px 6px;font-size:12px" value="'+(p.fecha||'')+'" onchange="updatePagoFactura(\"'+doc.id+'\",'+i+',\"fecha\",this.value)">'
-        + '<input type="number" step="0.01" min="0" class="fc" style="width:110px;padding:4px 6px;font-size:12px;font-weight:700;color:var(--ok)" value="'+(p.importe||0)+'" onchange="updatePagoFactura(\"'+doc.id+'\",'+i+',\"importe\",this.value)">'
-        + '<select class="fc" style="width:140px;padding:4px 6px;font-size:12px" onchange="updatePagoFactura(\"'+doc.id+'\",'+i+',\"medio\",this.value)">'
+      html += '<div style="display:flex;gap:6px;align-items:center;background:#f8f9fa;border:1px solid var(--g200);border-radius:8px;padding:7px 10px" data-pago-idx="'+i+'">'
+        + '<input type="date" class="fc pago-fecha" style="width:130px;padding:4px 6px;font-size:12px" value="'+(p.fecha||'')+'">'
+        + '<input type="number" step="0.01" min="0" class="fc pago-importe" style="width:110px;padding:4px 6px;font-size:12px;font-weight:700;color:var(--ok)" value="'+(p.importe||0)+'">'
+        + '<select class="fc pago-medio" style="width:140px;padding:4px 6px;font-size:12px">'
         + ['Transferencia','Efectivo','Bizum','Tarjeta'].map(function(m){return '<option'+(med===m?' selected':'')+'>'+m+'</option>';}).join('')
         + '</select>'
-        + '<input type="text" class="fc" style="flex:1;padding:4px 6px;font-size:11px" placeholder="Ref./notas" value="'+(p.notas||'')+'" onchange="updatePagoFactura(\"'+doc.id+'\",'+i+',\"notas\",this.value)">'
-        + '<button type="button" class="btn btn-s" style="padding:4px 10px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer" onclick="deletePagoFactura(\"'+doc.id+'\",'+i+')">\U0001f5d1</button>'
+        + '<input type="text" class="fc pago-notas" style="flex:1;padding:4px 6px;font-size:11px" placeholder="Ref./notas" value="'+(p.notas||'')+'">'
+        + '<button type="button" class="btn btn-s pago-del-btn" style="padding:4px 10px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer">\uD83D\uDDD1</button>'
         + '</div>';
     });
     html += '</div>';
@@ -7067,24 +7068,33 @@ function renderPagosEditor(doc) {
   html += '<div style="border:2px dashed var(--g200);border-radius:8px;padding:10px;background:#fafafa">'
     + '<div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:8px">+ Registrar nuevo cobro</div>'
     + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
-    + '<input type="date" id="npf-fecha-'+doc.id+'" class="fc" style="width:140px;padding:6px" value="'+hoy+'">'
-    + '<input type="number" step="0.01" min="0" id="npf-importe-'+doc.id+'" class="fc" style="width:130px;padding:6px;font-weight:700" placeholder="Importe" value="'+(pendiente>0?pendiente.toFixed(2):'')+' ">'
-    + '<select id="npf-medio-'+doc.id+'" class="fc" style="width:150px;padding:6px">'
-    + '<option>Transferencia</option><option>Efectivo</option><option>Bizum</option><option>Tarjeta</option>'
-    + '</select>'
-    + '<input type="text" id="npf-notas-'+doc.id+'" class="fc" style="flex:1;min-width:100px;padding:6px" placeholder="Referencia / notas">'
-    + '<button type="button" class="btn btn-g" style="padding:6px 16px;white-space:nowrap" onclick="addPagoFactura(\"'+doc.id+'\")">&#x1F4B0; A&#xF1;adir pago</button>'
+    + '<input type="date" id="npf-fecha" class="fc" style="width:140px;padding:6px" value="'+hoy+'">'
+    + '<input type="number" step="0.01" min="0" id="npf-importe" class="fc" style="width:130px;padding:6px;font-weight:700" placeholder="Importe \u20ac">'
+    + '<select id="npf-medio" class="fc" style="width:150px;padding:6px"><option>Transferencia</option><option>Efectivo</option><option>Bizum</option><option>Tarjeta</option></select>'
+    + '<input type="text" id="npf-notas" class="fc" style="flex:1;min-width:100px;padding:6px" placeholder="Referencia / notas">'
+    + '<button type="button" id="npf-add-btn" class="btn btn-g" style="padding:6px 16px;white-space:nowrap">\uD83D\uDCB0 A\xF1adir pago</button>'
     + '</div></div>';
   resumenEl.innerHTML = html;
+  // Wire via addEventListener — avoids inline onclick UUID issues
+  const addBtn = document.getElementById('npf-add-btn');
+  if(addBtn) addBtn.addEventListener('click', function(){ addPagoFactura(String(doc.id)); });
+  resumenEl.querySelectorAll('[data-pago-idx]').forEach(function(row) {
+    const idx = parseInt(row.getAttribute('data-pago-idx'));
+    row.querySelector('.pago-fecha').addEventListener('change', function(){ updatePagoFactura(String(doc.id),idx,'fecha',this.value); });
+    row.querySelector('.pago-importe').addEventListener('change', function(){ updatePagoFactura(String(doc.id),idx,'importe',this.value); });
+    row.querySelector('.pago-medio').addEventListener('change', function(){ updatePagoFactura(String(doc.id),idx,'medio',this.value); });
+    row.querySelector('.pago-notas').addEventListener('change', function(){ updatePagoFactura(String(doc.id),idx,'notas',this.value); });
+    row.querySelector('.pago-del-btn').addEventListener('click', function(){ deletePagoFactura(String(doc.id),idx); });
+  });
 }
 
 function addPagoFactura(docId) {
   const doc = documents.find(function(d){return String(d.id)===String(docId);});
   if(!doc) return;
-  const fecha   = document.getElementById('npf-fecha-'+docId)?.value || new Date().toISOString().split('T')[0];
-  const importe = parseFloat(document.getElementById('npf-importe-'+docId)?.value||0);
-  const medio   = document.getElementById('npf-medio-'+docId)?.value || 'Transferencia';
-  const notas   = document.getElementById('npf-notas-'+docId)?.value || '';
+  const fecha   = document.getElementById('npf-fecha')?.value || new Date().toISOString().split('T')[0];
+  const importe = parseFloat(document.getElementById('npf-importe')?.value||0);
+  const medio   = document.getElementById('npf-medio')?.value || 'Transferencia';
+  const notas   = document.getElementById('npf-notas')?.value || '';
   if(!importe || importe <= 0) { showToast('Indica el importe del pago','er'); return; }
   if(!doc.pagos) doc.pagos = [];
   doc.pagos.push({fecha, importe, medio, notas});
