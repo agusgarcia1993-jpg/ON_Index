@@ -3922,7 +3922,7 @@ function autoLinkDocToProject(doc) {
     // Find project: by presRef match, by proyCod, or by client+presupuesto state
     var existingPres = proyectos.find(function(p){ return p.presRef === doc.num; })
       || (doc.proyCod ? proyectos.find(function(p){ return p.codigo===doc.proyCod||String(p.id)===doc.proyCod; }) : null)
-      || proyectos.find(function(p){ return p.clienteNombre===doc.cliente && (p.estado==='Presupuesto'||p.estado==='En captación'); });
+      || proyectos.find(function(p){ return p.clienteNombre===doc.cliente && (p.estado==='Presupuesto'||p.estado==='En captación') && !p.facRef; });
     if(!existingPres) {
       // Create new project automatically
       const p = {
@@ -5810,43 +5810,47 @@ function renderTesoreria() {
   if(fsi) ingresos=ingresos.filter(t=>t.estado===fsi);
   ingresos.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
   const tbody_i=document.getElementById('tes-ingresos-tbody');
-  if(tbody_i) tbody_i.innerHTML=ingresos.length?ingresos.map(t=>`<tr${t.source!=='manual'?' style="background:rgba(45,106,79,.04)"':''}>
-    <td>${t.fecha?t.fecha.split('-').reverse().join('/'):'—'}</td>
-    <td><strong>${t.concepto}</strong>${t.source!=='manual'?'<span style="font-size:9px;color:var(--ok);margin-left:4px">●auto</span>':''}</td>
-    <td class="m">${t.contraparte||'—'}</td>
-    <td style="color:var(--ok)"><strong>+€${(t.importe||0).toFixed(2)}</strong></td>
-    <td><span class="badge bgry">${t.medio||'—'}</span></td>
-    <td class="m">${t.ref||'—'}</td>
-    <td><span class="badge ${t.estado==='Realizado'?'bsuc':'bwrn'}">${t.estado}</span></td>
-    <td style="white-space:nowrap">${t.source==='manual'?`
-      <button class="btn btn-o btn-s" style="padding:4px 8px" onclick="openTesModal('ingreso','${t.id}')">✏️</button>
-      <button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer;margin-left:3px" onclick=\"deleteMovimiento('\${t.id}')\">🗑</button>`:
-      t.source==='pago'?`<span style="font-size:9px;color:var(--slate);margin-right:4px">auto</span>
-      <button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer" title="Eliminar este pago de la factura" onclick=\"deleteMovimiento('\${t.id}')\">🗑</button>`:
-      '<span style="font-size:10px;color:var(--slate)">auto</span>'}
-    </td>
-  </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--slate)">Sin ingresos registrados.</td></tr>';
-
+  const renderTesBtn = function(t, tipo) {
+    const isI = tipo==='ingreso';
+    if(t.source==='manual') return (isI
+      ? '<button class="btn btn-o btn-s" style="padding:4px 8px" data-action="edit-tes" data-tipo="ingreso" data-id="'+t.id+'">✏️</button>'
+      : '<button class="btn btn-o btn-s" style="padding:4px 8px" data-action="edit-tes" data-tipo="salida" data-id="'+t.id+'">✏️</button>')
+      +'<button class="btn btn-s tes-del" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer;margin-left:3px" data-id="'+t.id+'">🗑</button>';
+    if(t.source==='pago') return '<span style="font-size:9px;color:var(--slate);margin-right:4px">auto</span>'
+      +'<button class="btn btn-s tes-del" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer" title="Eliminar este cobro de la factura" data-id="'+t.id+'">🗑</button>';
+    return '<span style="font-size:10px;color:var(--slate)">auto</span>';
+  };
+  const mkTesRow = function(t, tipo) {
+    return '<tr'+(t.source!=='manual'?' style="background:rgba('+(tipo==='ingreso'?'45,106,79':'193,18,31')+',.04)"':'')+'>'      +'<td>'+(t.fecha?t.fecha.split('-').reverse().join('/'):'—')+'</td>'
+      +'<td><strong>'+escapeHtml(t.concepto||'')+'</strong>'+(t.source!=='manual'?'<span style="font-size:9px;color:'+(tipo==='ingreso'?'var(--ok)':'var(--err)')+';margin-left:4px">●auto</span>':'')+'</td>'
+      +'<td class="m">'+escapeHtml(t.contraparte||'—')+'</td>'
+      +'<td style="color:'+(tipo==='ingreso'?'var(--ok)':'var(--err)')+'"><strong>'+(tipo==='ingreso'?'+':'-')+'€'+(t.importe||0).toFixed(2)+'</strong></td>'
+      +'<td><span class="badge bgry">'+(t.medio||'—')+'</span></td>'
+      +'<td class="m">'+(t.ref||'—')+'</td>'
+      +'<td><span class="badge '+(t.estado==='Realizado'?'bsuc':'bwrn')+'">'+(t.estado||'')+'</span></td>'
+      +'<td style="white-space:nowrap">'+renderTesBtn(t,tipo)+'</td>'
+      +'</tr>';
+  };
+  const tesDelegate = function(e) {
+    const del = e.target.closest('.tes-del');
+    if(del) { deleteMovimiento(del.getAttribute('data-id')); return; }
+    const edit = e.target.closest('[data-action="edit-tes"]');
+    if(edit) openTesModal(edit.getAttribute('data-tipo'), edit.getAttribute('data-id'));
+  };
+  if(tbody_i) {
+    tbody_i.innerHTML = ingresos.length ? ingresos.map(function(t){ return mkTesRow(t,'ingreso'); }).join('') : '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--slate)">Sin ingresos registrados.</td></tr>';
+    tbody_i.onclick = tesDelegate;
+  }
   // Salidas
   let salidas=flow.filter(t=>t.tipo==='salida');
   if(fms) salidas=salidas.filter(t=>t.medio===fms);
   if(fss) salidas=salidas.filter(t=>t.estado===fss);
   salidas.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
   const tbody_s=document.getElementById('tes-salidas-tbody');
-  if(tbody_s) tbody_s.innerHTML=salidas.length?salidas.map(t=>`<tr${t.source!=='manual'?' style="background:rgba(193,18,31,.04)"':''}>
-    <td>${t.fecha?t.fecha.split('-').reverse().join('/'):'—'}</td>
-    <td><strong>${t.concepto}</strong>${t.source!=='manual'?'<span style="font-size:9px;color:var(--err);margin-left:4px">●auto</span>':''}<br>${t.proyCod?'<span class="badge bgry" style="font-size:9px">'+t.proyCod+'</span>':''}</td>
-    <td class="m">${t.contraparte||'—'}</td>
-    <td style="color:var(--err)"><strong>-€${(t.importe||0).toFixed(2)}</strong></td>
-    <td><span class="badge bgry">${t.medio||'—'}</span></td>
-    <td class="m">${t.ref||'—'}</td>
-    <td><span class="badge ${t.estado==='Realizado'?'bsuc':'bwrn'}">${t.estado}</span></td>
-    <td style="white-space:nowrap">${t.source==='manual'?`
-      <button class="btn btn-o btn-s" style="padding:4px 8px" onclick="openTesModal('salida','${t.id}')">✏️</button>
-      <button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer;margin-left:3px" onclick=\"deleteMovimiento('\${t.id}')\">🗑</button>`:'<span style="font-size:10px;color:var(--slate)">auto</span>'}
-    </td>
-  </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--slate)">Sin salidas registradas.</td></tr>';
-
+  if(tbody_s) {
+    tbody_s.innerHTML = salidas.length ? salidas.map(function(t){ return mkTesRow(t,'salida'); }).join('') : '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--slate)">Sin salidas registradas.</td></tr>';
+    tbody_s.onclick = tesDelegate;
+  }
   // KPIs from unified flow
   const realized = flow.filter(t=>t.estado==='Realizado');
   const efectivoIn=realized.filter(t=>t.tipo==='ingreso'&&t.medio==='Efectivo').reduce((s,t)=>s+t.importe,0);
@@ -6167,7 +6171,7 @@ function renderPreview(type) {
   const d=getDocData(type);
   const e=getEmpresa();
   const cid='preview-'+type;
-  const lHTML=d.lines.length?d.lines.map(l=>`<tr style="border-bottom:1px solid #eee"><td style="padding:9px 8px;font-size:13px">${l.desc}</td><td style="padding:9px 8px;text-align:center;font-size:13px">${l.qty}</td><td style="padding:9px 8px;text-align:right;font-size:13px">€${l.price.toFixed(2)}</td><td style="padding:9px 8px;text-align:right;font-size:13px;font-weight:600">€${l.total.toFixed(2)}</td></tr>`).join(''):`<tr><td colspan="4" style="padding:18px;text-align:center;color:#999">Sin líneas</td></tr>`;
+  const lHTML=d.lines.length?d.lines.map(l=>`<tr style="border-bottom:1px solid #eee"><td style="padding:9px 8px;font-size:13px">${escapeHtml(l.desc||'')}</td><td style="padding:9px 8px;text-align:center;font-size:13px">${l.qty}</td><td style="padding:9px 8px;text-align:right;font-size:13px">${l.price>0?'€'+l.price.toFixed(2):'—'}</td><td style="padding:9px 8px;text-align:right;font-size:13px;font-weight:600">${l.total>0?'€'+l.total.toFixed(2):'—'}</td></tr>`).join(''):`<tr><td colspan="4" style="padding:18px;text-align:center;color:#999">Sin líneas</td></tr>`;
   document.getElementById(cid).innerHTML=`<div class="docprev">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px">
       <div><div style="font-size:20px;font-weight:800">OBRA<span style="color:var(--gold)">NORD</span></div><div style="font-size:10px;color:var(--slate);letter-spacing:1.5px;text-transform:uppercase">${e.web}</div><div style="margin-top:8px;font-size:12px;color:#666;line-height:1.6">${e.nombre}${e.cif?'<br>CIF: '+e.cif:''}<br>${e.dir}<br>${e.email}</div></div>
@@ -6227,9 +6231,11 @@ async function generatePDF(type) {
     y+=42;
     if(data.obra){doc.setFillColor(245,245,250);doc.rect(14,y,182,8,'F');doc.setTextColor(...GRAY);doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.text('Dirección de obra:',18,y+5.5);doc.setFont('helvetica','normal');doc.text(data.obra,52,y+5.5);y+=12;}
     doc.setDrawColor(...GOLD);doc.setLineWidth(0.8);doc.line(14,y,W-14,y);y+=8;
-    const tData=data.lines.length?data.lines.map(l=>[l.desc,l.qty.toString(),l.price.toFixed(2)+' €',l.total.toFixed(2)+' €']):[['Sin conceptos añadidos','','','']];
+    const tData=data.lines.length?data.lines.map(l=>[l.desc,l.qty.toString(),(l.price>0?l.price.toFixed(2)+' €':'—'),(l.total>0?l.total.toFixed(2)+' €':'—')]):[['Sin conceptos añadidos','','','']];
     doc.autoTable({startY:y,head:[['Descripción','Uds','Precio/ud','Total']],body:tData,margin:{left:14,right:14},headStyles:{fillColor:DARK,textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:4},bodyStyles:{fontSize:8.5,cellPadding:4},columnStyles:{0:{cellWidth:'auto'},1:{cellWidth:18,halign:'center'},2:{cellWidth:28,halign:'right'},3:{cellWidth:28,halign:'right',fontStyle:'bold'}},alternateRowStyles:{fillColor:[250,250,252]}});
     y=doc.lastAutoTable.finalY+8;
+    // If totals block won't fit on current page, add a new page
+    if(y + 60 > H - 22) { doc.addPage(); y = 20; }
     const tW=70,tX=W-14-tW;
     doc.setFillColor(...CREAM);doc.roundedRect(tX-4,y-2,tW+8,32,3,3,'F');
     doc.setFontSize(8);doc.setTextColor(...GRAY);doc.setFont('helvetica','normal');
@@ -6239,7 +6245,10 @@ async function generatePDF(type) {
     doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...DARK);
     doc.text('TOTAL',tX,y+23);doc.text(data.total.toFixed(2)+' €',tX+tW,y+23,{align:'right'});
     y+=40;
-    if(data.notas){doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);doc.splitTextToSize(data.notas,180).slice(0,3).forEach((l,i)=>doc.text(l,14,y+5+i*4.5));y+=5+12;}
+    if(data.notas){
+      if(y+20>H-22){doc.addPage();y=20;}
+      doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);doc.splitTextToSize(data.notas,180).slice(0,3).forEach((l,i)=>doc.text(l,14,y+5+i*4.5));y+=5+12;
+    }
     const ibanPDF = data.iban || e.iban || '';
     if(data.pago || ibanPDF) {
       doc.setFillColor(244,241,236); doc.roundedRect(14,y,182,ibanPDF?14:8,2,2,'F');
@@ -6403,9 +6412,11 @@ async function generatePDFFromDoc(id) {
   // Líneas
   doc.setDrawColor(...GOLD); doc.setLineWidth(0.8); doc.line(14,y,W-14,y); y+=8;
   const lines = d.lines||[];
-  const tData = lines.length ? lines.map(function(l){ return [l.desc||'',String(l.qty||1),(l.price||0).toFixed(2)+' €',(l.total||0).toFixed(2)+' €']; }) : [['Sin conceptos añadidos','','','']];
+  const tData = lines.length ? lines.map(function(l){ return [l.desc||'',String(l.qty||1),(l.price>0?l.price.toFixed(2)+' €':'—'),(l.total>0?l.total.toFixed(2)+' €':'—')]; }) : [['Sin conceptos añadidos','','','']];
   doc.autoTable({startY:y,head:[['Descripción','Uds','Precio/ud','Total']],body:tData,margin:{left:14,right:14},headStyles:{fillColor:DARK,textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:4},bodyStyles:{fontSize:8.5,cellPadding:4},columnStyles:{0:{cellWidth:'auto'},1:{cellWidth:18,halign:'center'},2:{cellWidth:28,halign:'right'},3:{cellWidth:28,halign:'right',fontStyle:'bold'}},alternateRowStyles:{fillColor:[250,250,252]}});
   y = doc.lastAutoTable.finalY + 8;
+  // Add new page if totals won't fit
+  if(y + 60 > H - 22) { doc.addPage(); y = 20; }
 
   // Totales
   const sub = d.sub || (d.total ? d.total/1.21 : 0);
@@ -6423,7 +6434,7 @@ async function generatePDFFromDoc(id) {
   y += 40;
 
   // Notas
-  if(d.notas){ doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);doc.splitTextToSize(d.notas,180).slice(0,3).forEach(function(l,i){doc.text(l,14,y+5+i*4.5);});y+=5+12; }
+  if(d.notas){ if(y+20>H-22){doc.addPage();y=20;} doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);doc.splitTextToSize(d.notas,180).slice(0,3).forEach(function(l,i){doc.text(l,14,y+5+i*4.5);});y+=5+12; }
 
   // Pago e IBAN — bloque destacado
   if(d.medioPago || ibanDoc) {
@@ -7462,6 +7473,13 @@ function guardarPresupuesto() {
   // Collect form data
   const data=getDocData('p');
   if(!data){showToast('Completa los datos antes de guardar','er');return;}
+  // Auto-fill number if empty (can happen if Supabase loaded after form opened)
+  if(!data.num || !data.num.trim()) {
+    const autoNum = getNextDocNum('presupuesto');
+    data.num = autoNum;
+    const pNumEl = document.getElementById('p-num');
+    if(pNumEl) pNumEl.value = autoNum;
+  }
   const editId = document.getElementById('p-edit-id')?.value||'';
   // Numeración validation — skip duplicate check if editing existing doc
   if(!editId) {
@@ -7524,9 +7542,16 @@ function guardarPresupuesto() {
     showToast('✅ Presupuesto '+data.num+' guardado','ok');
   }
 
+  // Force-update linked project importePres (in case autoLinkDocToProject ran async)
+  setTimeout(function(){
+    const linkedProj = proyectos.find(function(p){ return p.presRef===data.num || p.codigo===data.proyCod; });
+    if(linkedProj && linkedProj.importePres !== data.total) {
+      linkedProj.importePres = data.total;
+      renderProyectos();
+    }
+  }, 100);
   saveData('save_presupuesto', 'Presupuesto '+data.num+' — '+cliente);
   populateProyectoSelects();
-  renderPresPendientes();
   renderProyectos();
   renderHistory();
   updateDashboard();
