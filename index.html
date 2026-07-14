@@ -6120,7 +6120,7 @@ function getDocData(type) {
     const ivaPct=parseFloat(document.getElementById('p-iva-pct')?.value||document.getElementById('e-iva')?.value||21);
     const ivaDec=ivaPct/100;
     return {
-      type:'PRESUPUESTO', typeEs:'presupuesto',
+      type:'presupuesto', typeEs:'presupuesto',
       num: document.getElementById('p-num')?.value||'',
       fecha: document.getElementById('p-fecha')?.value||now,
       validez: document.getElementById('p-validez')?.value||'',
@@ -6988,6 +6988,7 @@ function editarPresupuestoDesdeHistorial(docId) {
   if(!doc||doc.type!=='presupuesto'){showToast('Documento no encontrado','er');return;}
   showSec('nuevo-presupuesto');
   waitForElement('p-num').then(function() {
+    populateClienteSelects(); populateProyectoSelects();
     const sv=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v||'';};
     const editIdEl=document.getElementById('p-edit-id');if(editIdEl)editIdEl.value=doc.id;
     // Fix corrupted numbering (e.g. num saved as FAC-xxx for a presupuesto)
@@ -7008,6 +7009,7 @@ function editarPresupuestoDesdeHistorial(docId) {
     sv('p-dir-obra',doc.obra);
     sv('p-estado',doc.estado||'Pendiente de aprobación');
     sv('p-notas',doc.notas);
+    const pproy=document.getElementById('p-proyecto');if(pproy&&doc.proyCod){pproy.value=doc.proyCod;} else if(pproy){pproy.value='';}
     // Medio pago
     const ppago=document.getElementById('p-pago'); if(ppago&&doc.medioPago) ppago.value=doc.medioPago;
     // IVA
@@ -7494,16 +7496,31 @@ function guardarPresupuesto() {
   if(proyCodSel) {
     const proj = proyectos.find(function(p){ return p.codigo===proyCodSel||String(p.id)===proyCodSel; });
     if(proj) {
-      proj.importePres = data.total;
+      if(data.total > 0) proj.importePres = data.total;
       proj.presRef = data.num;
       proj.clienteNombre = data.cliente||proj.clienteNombre;
     }
     data.proyCod = proyCodSel;
+  } else if(editId) {
+    // Editing — find existing linked project and update it
+    const existDoc = documents.find(function(d){return String(d.id)===String(editId);});
+    const existProy = existDoc ? proyectos.find(function(p){
+      return p.presRef===existDoc.num || p.codigo===existDoc.proyCod || String(p.id)===existDoc.proyCod;
+    }) : null;
+    if(existProy) {
+      if(data.total > 0) existProy.importePres = data.total;
+      existProy.presRef = data.num;
+      data.proyCod = existProy.codigo || String(existProy.id);
+    }
   } else {
-    // No project selected — let autoLinkDocToProject handle it (matches by client/presRef)
-    // but first try to find existing project by presRef to update it
-    const existByRef = proyectos.find(function(p){ return p.presRef===data.num || (data.proyCod && (p.codigo===data.proyCod||String(p.id)===data.proyCod)); });
-    if(existByRef) { existByRef.importePres = data.total; existByRef.presRef = data.num; }
+    // New presupuesto, no project selected — find by presRef or proyCod
+    const existByRef = proyectos.find(function(p){
+      return p.presRef===data.num || (data.proyCod && (p.codigo===data.proyCod||String(p.id)===data.proyCod));
+    });
+    if(existByRef) {
+      if(data.total > 0) existByRef.importePres = data.total;
+      existByRef.presRef = data.num;
+    }
   }
 
   if(editId) {
@@ -7512,6 +7529,7 @@ function guardarPresupuesto() {
     if(idx !== -1) {
       const existing = documents[idx];
       documents[idx] = Object.assign({}, existing, {
+        type:'presupuesto', typeEs:'presupuesto', // force correct type
         num:data.num, fecha:data.fecha, validez:data.validez, pago:data.pago,
         cliente:data.cliente, nifCliente:data.nifCliente, dirCliente:data.dirCliente,
         emailCliente:data.emailCliente, obra:data.obra, notas:data.notas,
