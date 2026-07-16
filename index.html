@@ -3868,6 +3868,23 @@ function downloadCSV(filename, headers, rows) {
 // ═══════════════════════════════════════════════════════
 function saveToHistory(item) {
   if(item && item.type) item.type = item.type.toLowerCase();
+  // Clean up ghost documents with same num but wrong type (e.g. ghost factura with PRE- number)
+  if(item.type === 'presupuesto' && item.num) {
+    const ghosts = documents.filter(function(d){ return d.num===item.num && d.type!=='presupuesto'; });
+    if(ghosts.length) {
+      console.log('[saveToHistory] Removing '+ghosts.length+' ghost doc(s) with num '+item.num+' and wrong type');
+      ghosts.forEach(function(g){ sbDelete('documentos', g.id); });
+      documents = documents.filter(function(d){ return !(d.num===item.num && d.type!=='presupuesto'); });
+    }
+  }
+  if(item.type === 'factura' && item.num) {
+    const ghosts = documents.filter(function(d){ return d.num===item.num && d.type!=='factura'; });
+    if(ghosts.length) {
+      console.log('[saveToHistory] Removing '+ghosts.length+' ghost doc(s) with num '+item.num+' and wrong type');
+      ghosts.forEach(function(g){ sbDelete('documentos', g.id); });
+      documents = documents.filter(function(d){ return !(d.num===item.num && d.type!=='factura'); });
+    }
+  }
   const beforeDoc = documents.find(d => d.num === item.num && d.type === item.type);
   return withTransaction(function() {
   // Check if document with same num already exists — update it instead of duplicating
@@ -3917,51 +3934,62 @@ function saveToHistory(item) {
 }
 
 function autoLinkDocToProject(doc) {
+  // SAFE linking: only link by EXACT matches (proyCod or presRef/facRef)
+  // NEVER auto-link by client name alone — causes wrong project assignments
   if(doc.type==='presupuesto') {
-    // Check if project already exists for this presupuesto number
-    // Find project: by presRef match, by proyCod, or by client+presupuesto state
-    var existingPres = proyectos.find(function(p){ return p.presRef === doc.num; })
-      || (doc.proyCod ? proyectos.find(function(p){ return p.codigo===doc.proyCod||String(p.id)===doc.proyCod; }) : null)
-      || proyectos.find(function(p){ return p.clienteNombre===doc.cliente && (p.estado==='Presupuesto'||p.estado==='En captación') && !p.facRef; });
+    // Priority 1: explicit proyCod on the document
+    var existingPres = doc.proyCod
+      ? proyectos.find(function(p){ return p.codigo===doc.proyCod||String(p.id)===doc.proyCod; })
+      : null;
+    // Priority 2: exact presRef match
+    if(!existingPres) existingPres = proyectos.find(function(p){ return p.presRef===doc.num && doc.num; });
+    // NO fallback by client — too risky
     if(!existingPres) {
-      // Create new project automatically
-      const p = {
-        id: generateId(),
-        codigo: genProyCodigo(),
-        nombre: (doc.cliente||'Cliente') + ' — ' + (doc.num||''),
-        clienteNombre: doc.cliente||'',
-        clienteId: '',
-        dir: doc.obra||doc.dirCliente||'',
-        estado: 'Presupuesto',
-        inicio: doc.fecha||new Date().toISOString().split('T')[0],
-        fin: '',
-        importePres: doc.total||0,
-        importeFac: 0,
-        presRef: doc.num||'',
-        facRef: '',
-        notas: 'Creado automáticamente desde presupuesto ' + (doc.num||'')
-      };
-      proyectos.unshift(p);
+      // Create new project ONLY if doc has no proyCod (truly unlinked)
+      if(!doc.proyCod) {
+        const p = {
+          id: generateId(),
+          codigo: genProyCodigo(),
+          nombre: (doc.cliente||'Cliente') + ' — ' + (doc.num||''),
+          clienteNombre: doc.cliente||'',
+          clienteId: '',
+          dir: doc.obra||doc.dirCliente||'',
+          estado: 'Presupuesto',
+          inicio: doc.fecha||new Date().toISOString().split('T')[0],
+          fin: '',
+          importePres: doc.total||0,
+          importeFac: 0,
+          presRef: doc.num||'',
+          facRef: '',
+          notas: 'Creado automáticamente desde presupuesto ' + (doc.num||'')
+        };
+        proyectos.unshift(p);
+        doc.proyCod = p.codigo;
+      }
     } else {
-      existingPres.importePres = doc.total||0;
+      if(doc.total > 0) existingPres.importePres = doc.total;
       existingPres.presRef = doc.num||existingPres.presRef;
       existingPres.clienteNombre = doc.cliente||existingPres.clienteNombre;
-      syncProyectoFromDoc(doc);
+      doc.proyCod = existingPres.codigo||String(existingPres.id);
     }
   }
   if(doc.type==='factura') {
-    // Find project by presRef or by facRef or by client
-    const presRef = doc.presRef||'';
-    let proj = presRef ? proyectos.find(p => p.presRef === presRef) : null;
-    if(!proj) proj = proyectos.find(p => p.facRef === doc.num);
-    if(!proj && doc.cliente) proj = proyectos.find(p => p.clienteNombre === doc.cliente && p.estado !== 'Cancelado' && p.estado !== 'Finalizado');
+    // Priority 1: explicit proyCod on document
+    let proj = doc.proyCod
+      ? proyectos.find(function(p){ return p.codigo===doc.proyCod||String(p.id)===doc.proyCod; })
+      : null;
+    // Priority 2: exact presRef match
+    if(!proj && doc.presRef) proj = proyectos.find(function(p){ return p.presRef===doc.presRef; });
+    // Priority 3: exact facRef match
+    if(!proj) proj = proyectos.find(function(p){ return p.facRef===doc.num && doc.num; });
+    // NO fallback by client
     if(proj) {
-      proj.facRef = doc.num;
-      proj.importeFac = doc.total||0;
+      if(!proj.facRef) proj.facRef = doc.num;
+      if(doc.total > 0) proj.importeFac = doc.total||0;
       proj.medioPago = doc.medioPago||proj.medioPago||'';
-      proj.estado = 'Facturado';
-    } else {
-      // No project found — create one automatically
+      if(proj.estado!=='Finalizado') proj.estado = 'Facturado';
+    } else if(!doc.proyCod) {
+      // Create project only if truly unlinked (no proyCod)
       proyectos.unshift({
         id: generateId(),
         codigo: genProyCodigo(),
@@ -6247,7 +6275,13 @@ async function generatePDF(type) {
     y+=40;
     if(data.notas){
       if(y+20>H-22){doc.addPage();y=20;}
-      doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);doc.splitTextToSize(data.notas,180).slice(0,3).forEach((l,i)=>doc.text(l,14,y+5+i*4.5));y+=5+12;
+      doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);
+      const notasLns = doc.splitTextToSize(data.notas,180);
+      notasLns.forEach(function(l,i){
+        if(y+5+(i*4.5) > H-22){ doc.addPage(); y=15; }
+        doc.text(l,14,y+5+(i*4.5));
+      });
+      y += 5 + (notasLns.length*4.5) + 6;
     }
     const ibanPDF = data.iban || e.iban || '';
     if(data.pago || ibanPDF) {
@@ -6434,7 +6468,18 @@ async function generatePDFFromDoc(id) {
   y += 40;
 
   // Notas
-  if(d.notas){ if(y+20>H-22){doc.addPage();y=20;} doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);doc.splitTextToSize(d.notas,180).slice(0,3).forEach(function(l,i){doc.text(l,14,y+5+i*4.5);});y+=5+12; }
+  if(d.notas){
+    if(y+20>H-22){doc.addPage();y=20;}
+    doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);
+    doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);
+    const dNotasLns = doc.splitTextToSize(d.notas,180);
+    dNotasLns.forEach(function(l,i){
+      const ly = y+5+(i*4.5);
+      if(ly > H-22){ doc.addPage(); y=15-(i*4.5); }
+      doc.text(l,14,y+5+(i*4.5));
+    });
+    y += 5 + (dNotasLns.length*4.5) + 6;
+  }
 
   // Pago e IBAN — bloque destacado
   if(d.medioPago || ibanDoc) {
@@ -7472,9 +7517,13 @@ function guardarPresupuesto() {
   const cliente=document.getElementById('p-cliente')?.value?.trim()||
     (document.getElementById('p-cliente-sel')?.value ? clientes.find(c=>c.id===parseInt(document.getElementById('p-cliente-sel').value))?.nombre||'' : '');
   if(!cliente){showToast('Indica el cliente del presupuesto','er');return;}
-  // Collect form data
+  // Collect form data — make sure we're reading from presupuesto form
   const data=getDocData('p');
   if(!data){showToast('Completa los datos antes de guardar','er');return;}
+  // Warn if no line items (but allow saving)
+  if((!data.lines||data.lines.length===0) && data.total===0) {
+    if(!confirm('El presupuesto no tiene conceptos ni importes. ¿Guardar igualmente?')) return;
+  }
   // Auto-fill number if empty (can happen if Supabase loaded after form opened)
   if(!data.num || !data.num.trim()) {
     const autoNum = getNextDocNum('presupuesto');
@@ -7555,7 +7604,8 @@ function guardarPresupuesto() {
       data.num = numBase.replace(/-v\d+$/,'') + '-' + version;
     }
     data.version = version;
-    const item={...data, pagosAnticipo:[..._pPresAnticipo]};
+    const item={...data, type:'presupuesto', typeEs:'presupuesto', pagosAnticipo:[..._pPresAnticipo]};
+    console.log('[PRE] Guardando item:', {type:item.type, num:item.num, total:item.total, lines:item.lines?.length, cliente:item.cliente});
     saveToHistory(item);
     showToast('✅ Presupuesto '+data.num+' guardado','ok');
   }
