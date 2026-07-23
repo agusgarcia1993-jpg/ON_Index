@@ -5759,7 +5759,7 @@ function buildCashFlow() {
   ordenes.filter(o=>o.pagadoProveedor).forEach(o=>{
     const gastoExist = gastos.find(g=>g.factura===o.num);
     if(!gastoExist) {
-      const totalOT = o.coste*1.21;
+      const totalOT = o.coste||0; // coste is the agreed amount (IVA tracked separately)
       all.push({
         id:'ot_'+o.id, source:'ot', tipo:'salida',
         fecha:o.fechaPago||o.fecha||'', concepto:'Pago proveedor · OT '+o.num,
@@ -9482,10 +9482,10 @@ function renderCuentas() {
 
     const totalPendiente = ordenesConCoste
       .filter(function(o){ return o.pagoProveedor !== 'Pagado'; })
-      .reduce(function(s,o){ return s+(o.coste||0)*1.21; }, 0);
+      .reduce(function(s,o){ return s+(o.coste||0); }, 0);
     const totalPagado = ordenesConCoste
       .filter(function(o){ return o.pagoProveedor === 'Pagado'; })
-      .reduce(function(s,o){ return s+(o.coste||0)*1.21; }, 0);
+      .reduce(function(s,o){ return s+(o.coste||0); }, 0);
 
     const estadoPagoBadge = {'Pagado':'bsuc','Pendiente':'berr','Parcial':'bwrn'};
 
@@ -9495,10 +9495,11 @@ function renderCuentas() {
           const ivaAmt = base * 0.21;
           const total = base + ivaAmt;
           const yaPagado = (o.pagosProveedor||[]).reduce(function(s,p){return s+(p.importe||0);},0);
-          const pendiente = Math.max(0, total - yaPagado);
+          // Pendiente: compare against base cost (pagos track actual cash paid, IVA is accounting-only)
+          const pendiente = Math.max(0, base - yaPagado);
           const estadoPago = o.pagoProveedor || 'Pendiente';
           const estBadge = estadoPagoBadge[estadoPago] || 'bgry';
-          const progPct = total > 0 ? Math.min(100, Math.round(yaPagado/total*100)) : 0;
+          const progPct = base > 0 ? Math.min(100, Math.round(yaPagado/base*100)) : 0;
           const progBar = yaPagado > 0 && estadoPago !== 'Pagado'
             ? '<div style="height:4px;background:var(--g200);border-radius:2px;margin-top:3px"><div style="height:4px;background:var(--gold);border-radius:2px;width:'+progPct+'%"></div></div>'
             : '';
