@@ -2414,12 +2414,16 @@ async function loadFromSheets() {
 // Polling: comprueba updated_at de la tabla empresa como timestamp global
 async function pollSheetsVersion() {
   try {
-    const rows = await sbFetch('empresa', 'GET', null, '?select=updated_at&limit=1');
+    const rows = await sbFetch('gastos', 'GET', null, '?select=updated_at&order=updated_at.desc&limit=1');
     if(!rows || !rows.length) { setSyncStatus('error'); return; }
     setSyncStatus('connected');
     const remoteTs = new Date(rows[0].updated_at).getTime();
-    if(remoteTs > _lastRemoteSave + 15000) {
-      console.log('[ObraNord] Datos remotos más nuevos — recargando desde Supabase…');
+    // Compare against last SEEN remote timestamp (not local save time)
+    // This ensures Franco's changes trigger a reload on Agustín's PC
+    const lastSeen = parseInt(localStorage.getItem('on_last_seen_remote_ts')||'0');
+    if(remoteTs > lastSeen + 5000) {
+      console.log('[ObraNord] Cambios remotos detectados (lastSeen='+new Date(lastSeen).toISOString()+') — recargando…');
+      localStorage.setItem('on_last_seen_remote_ts', String(remoteTs));
       const remote = await loadFromSupabase();
       if(remote) { applyRemoteData(remote, false); renderAllAfterSync(); }
     }
@@ -2590,6 +2594,7 @@ async function saveToSupabase(payload) {
     }
 
     _lastRemoteSave = Date.now();
+    localStorage.setItem('on_last_seen_remote_ts', String(Date.now()));
     localStorage.setItem('on_last_remote_save', String(_lastRemoteSave));
     _pendingSync = false;
     setSyncStatus('ok');
@@ -2706,6 +2711,7 @@ async function loadFromSupabase() {
     };
 
     _lastRemoteSave = Date.now();
+    localStorage.setItem('on_last_seen_remote_ts', String(Date.now()));
     localStorage.setItem('on_last_remote_save', String(_lastRemoteSave));
     setSyncStatus('ok');
     console.log('[ObraNord Supabase] ✅ Cargado OK');
@@ -2750,6 +2756,7 @@ function applyRemoteData(remote, withConfirm) {
     if(remote.proveedores) { PROVEEDORES = normalizarProveedores(remote.proveedores); }
     if(remote.gastoRecurrentes){gastoRecurrentes=remote.gastoRecurrentes;localStorage.setItem("on_gastos_rec",JSON.stringify(gastoRecurrentes));}
     _lastRemoteSave = Date.now();
+    localStorage.setItem('on_last_seen_remote_ts', String(Date.now()));
     localStorage.setItem('on_last_remote_save', String(_lastRemoteSave));
     // Re-render todo
     updateDashboard(); renderHistory(); renderClientes();
@@ -2769,7 +2776,7 @@ function applyRemoteData(remote, withConfirm) {
 function startPolling() {
   if(_pollInterval) clearInterval(_pollInterval);
   if(!GAS_URL) return;
-  _pollInterval = setInterval(pollSheetsVersion, 60000);
+  _pollInterval = setInterval(pollSheetsVersion, 30000); // 30s polling for better multi-user sync
   console.log('[ObraNord Polling] Iniciado — cada 60s');
 }
 
@@ -5368,7 +5375,7 @@ function renderProyectoResumen(p) {
   }
   const btnFac = document.getElementById('btn-crear-fac-pres');
   if(btnFac) {
-    const tienePres = p.presRef && documents.find(function(d){return d.num===p.presRef&&d.type==='presupuesto';});
+    const tienePres = p.presRef && p.presRef.startsWith('PRE-');
     btnFac.style.display = tienePres ? '' : 'none';
     btnFac.setAttribute('data-proy-id', String(p.id));
   }
@@ -5404,10 +5411,17 @@ function abrirGastoParaProyecto() {
   showToast('Gasto vinculado a '+p.nombre,'ok');
 }
 
-function crearFacturaDesdeProyecto() {
-  const proyId = document.getElementById('proy-edit-id')?.value;
-  const p = proyectos.find(function(x){return String(x.id)===String(proyId);});
-  if(!p||!p.presRef){ showToast('Este proyecto no tiene presupuesto vinculado','er'); return; }
+function crearFacturaDesdeProyecto(proyCodArg) {
+  // Accept optional proyCod param OR read from modal edit-id
+  let p;
+  if(proyCodArg) {
+    p = proyectos.find(function(x){return x.codigo===proyCodArg||String(x.id)===String(proyCodArg);});
+  } else {
+    const proyId = document.getElementById('proy-edit-id')?.value;
+    p = proyectos.find(function(x){return String(x.id)===String(proyId);});
+  }
+  if(!p){ showToast('Proyecto no encontrado. Cierra y vuelve a abrir el proyecto.','er'); return; }
+  if(!p.presRef){ showToast('Este proyecto no tiene presupuesto vinculado','er'); return; }
   const pres = documents.find(function(d){return d.num===p.presRef&&d.type==='presupuesto';});
   if(!pres){ showToast('No se encontró el presupuesto '+p.presRef,'er'); return; }
   closeProyectoModal();
@@ -5507,8 +5521,12 @@ function deleteProyecto(id) {
   ordenes = ordenes.filter(o=>o.proyCod!==p.codigo);
   gastos = gastos.filter(g=>g.proyCod!==p.codigo);
   proyectos = proyectos.filter(x=>String(x.id)!==String(id));
-  saveData(); renderProyectos(); renderHistory(); renderOrdenes(); renderGastos(); renderPresPendientes(); renderFacPendientes(); updateDashboard();
-  showToast('✅ Proyecto y documentos asociados eliminados');
+  // DELETE from Supabase immediately so it doesn't come back on reload
+  sbDelete('proyectos', String(id)).then(function(){
+    console.log('[Supabase] Proyecto '+id+' eliminado');
+  });
+  saveData(); renderProyectos(); renderHistory(); renderOrdenes(); renderGastos(); updateDashboard();
+  showToast('\u2705 Proyecto eliminado');
 }
 
 function renderProyectos() {
@@ -6371,7 +6389,11 @@ async function generatePDF(type) {
     doc.setTextColor(...GOLD); doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.text('CLIENTE',110,y+7);
     doc.setTextColor(...DARK); doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text(data.cliente||'—',110,y+13);
     doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
-    [data.nifCliente?'NIF: '+data.nifCliente:'',data.dirCliente,data.emailCliente].filter(Boolean).forEach((l,i)=>doc.text(l.substring(0,42),110,y+19+i*4.5));
+    let _cliY = y+19;
+    [data.nifCliente?'NIF: '+data.nifCliente:'',data.dirCliente,data.emailCliente].filter(Boolean).forEach(function(l){
+      const wrapped = doc.splitTextToSize(l||'', 85);
+      wrapped.forEach(function(wl){ doc.text(wl,110,_cliY); _cliY+=4.5; });
+    });
     y+=42;
     if(data.obra){doc.setFillColor(245,245,250);doc.rect(14,y,182,8,'F');doc.setTextColor(...GRAY);doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.text('Dirección de obra:',18,y+5.5);doc.setFont('helvetica','normal');doc.text(data.obra,52,y+5.5);y+=12;}
     doc.setDrawColor(...GOLD);doc.setLineWidth(0.8);doc.line(14,y,W-14,y);y+=8;
@@ -6553,7 +6575,11 @@ async function generatePDFFromDoc(id) {
   doc.setTextColor(...GOLD); doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.text('CLIENTE',110,y+7);
   doc.setTextColor(...DARK); doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text((d.cliente||'—').substring(0,30),110,y+13);
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
-  [d.nifCliente?'NIF: '+d.nifCliente:'',d.dirCliente,d.emailCliente].filter(Boolean).forEach(function(l,i){ doc.text(l.substring(0,38),110,y+19+i*4.5); });
+  let _cliY2 = y+19;
+  [d.nifCliente?'NIF: '+d.nifCliente:'',d.dirCliente,d.emailCliente].filter(Boolean).forEach(function(l){
+    const wrapped = doc.splitTextToSize(l||'', 85);
+    wrapped.forEach(function(wl){ doc.text(wl,110,_cliY2); _cliY2+=4.5; });
+  });
   y += 42;
 
   // Obra
@@ -7068,26 +7094,6 @@ function marcarFacturaCobrada(docId) {
   syncProyectoFromDoc(doc);
   saveData(); renderFacPendientes(); renderHistory(); renderProyectos(); updateDashboard();
   showToast('✅ Factura cerrada como COBRADA','ok');
-}
-
-function crearFacturaDesdeProyecto(proyCod) {
-  const p=proyectos.find(pr=>pr.codigo===proyCod||String(pr.id)===String(proyCod));
-  if(!p){showToast('Proyecto no encontrado','er');return;}
-  // Pre-fill factura form and navigate
-  showSec('nueva-factura');
-  setTimeout(()=>{
-    const setV=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
-    setV('f-cliente',p.clienteNombre||'');
-    setV('f-pres-ref',p.presRef||'');
-    setV('f-num',getNextDocNum('factura'));
-    setV('f-dir',p.dir||'');
-    // Find and set cliente select
-    const cli=clientes.find(c=>c.nombre===p.clienteNombre);
-    if(cli){const sel=document.getElementById('f-cliente-sel');if(sel)sel.value=cli.id;fillClienteInForm('f');}
-    const fprSel=document.getElementById('f-proyecto');
-    if(fprSel) fprSel.value=p.codigo||'';
-    showToast('Formulario prefilled desde proyecto '+p.codigo,'ok');
-  },300);
 }
 
 // ═══════════════════════════════════════════════════════
