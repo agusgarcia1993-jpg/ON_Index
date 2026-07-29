@@ -1647,6 +1647,18 @@ td.m{color:var(--slate);font-size:12px}
         <div id="drive-status" style="font-size:11px;color:var(--slate);margin-top:4px"></div>
       </div>
 
+      <!-- RESUMEN: GASTOS + CREAR FACTURA -->
+      <div id="proy-resumen-panel" style="margin-top:18px;padding:16px;background:var(--cream);border-radius:10px;border:1.5px solid var(--g200);display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span style="font-size:13px;font-weight:700;color:var(--dark)">📊 Resumen del proyecto</span>
+          <button type="button" id="btn-crear-fac-pres" class="btn btn-g btn-s" style="display:none;padding:5px 14px;font-size:12px" onclick="crearFacturaDesdeProyecto()">🧾 Crear factura desde presupuesto</button>
+        </div>
+        <div id="proy-kpis" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:12px"></div>
+        <div style="font-size:12px;font-weight:700;color:var(--dark);margin-bottom:6px">💸 Gastos vinculados</div>
+        <div id="proy-gastos-lista"></div>
+        <button type="button" class="btn btn-o btn-s" style="margin-top:8px;font-size:11px" onclick="abrirGastoParaProyecto()">+ Asociar gasto existente</button>
+      </div>
+
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--g200)">
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-o btn-s" id="btn-generar-memoria" onclick="generarPortfolioProyecto(document.getElementById('proy-edit-id').value)" style="display:none">
@@ -5086,6 +5098,8 @@ function openProyectoModal(id) {
     if(btnMem) btnMem.style.display = '';
     const btnDiv = document.getElementById('btn-generar-facs-div');
     if(btnDiv) btnDiv.style.display = (p.cofinanciadores&&p.cofinanciadores.length>1) ? '' : 'none';
+    // Render resumen panel (gastos + KPIs + botón factura)
+    renderProyectoResumen(p);
     // Limpiar thumbs locales
     _proyImagenesTemp = [];
     const thumbsEl = document.getElementById('proy-thumbs');
@@ -5100,6 +5114,7 @@ function openProyectoModal(id) {
   } else {
     document.getElementById('modal-proy-title').textContent='Nuevo proyecto';
     document.getElementById('proy-edit-id').value='';
+    var rpanel=document.getElementById('proy-resumen-panel');if(rpanel)rpanel.style.display='none';
     ['proy-nombre','proy-cli-input','proy-cli-id','proy-dir','proy-fin','proy-notas','proy-drive-link'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     populatePresRefSelect('');
     populateFacRefSelect('');
@@ -5311,6 +5326,122 @@ function generarFacturasDivididas(proyId) {
   showToast(`✅ ${creadas.length} facturas generadas: ${creadas.join(', ')}`,'ok');
 }
 
+
+// ═══ RESUMEN PROYECTO — GASTOS + CREAR FACTURA ═══
+function renderProyectoResumen(p) {
+  const panel = document.getElementById('proy-resumen-panel');
+  if(!panel) return;
+  panel.style.display = '';
+  const proyCod = p.codigo || String(p.id);
+  const oTs = ordenes.filter(function(o){ return o.proyCod===proyCod||String(o.proyCod)===String(p.id); });
+  const gastosVinc = gastos.filter(function(g){ return g.proyCod===proyCod && g.estado!=='Anulado'; });
+  const totalOTs = oTs.reduce(function(s,o){return s+(o.coste||0);},0);
+  const totalGastos = gastosVinc.reduce(function(s,g){return s+(g.importe||0);},0);
+  const facturasVinc = documents.filter(function(d){return d.type==='factura'&&d.proyCod===proyCod&&d.estado!=='Anulado';});
+  const totalFac = facturasVinc.reduce(function(s,d){return s+(d.sub||0);},0);
+  const beneficio = totalFac - totalOTs - totalGastos;
+  const kpiEl = document.getElementById('proy-kpis');
+  if(kpiEl) {
+    function kpiBox(label,val,col){ return '<div style="background:#fff;border-radius:8px;padding:8px 14px;border:1px solid var(--g200)"><div style="font-size:10px;color:var(--slate);margin-bottom:2px">'+label+'</div><div style="font-weight:700;color:'+col+'">'+val+'</div></div>'; }
+    kpiEl.innerHTML = kpiBox('Presupuestado','€'+(p.importePres||0).toFixed(2),'var(--gold)')
+      + kpiBox('Facturado (base)','€'+totalFac.toFixed(2),'var(--dark)')
+      + kpiBox('Coste OTs','€'+totalOTs.toFixed(2),'var(--err)')
+      + kpiBox('Gastos directos','€'+totalGastos.toFixed(2),'var(--err)')
+      + kpiBox('Beneficio','€'+beneficio.toFixed(2),beneficio>=0?'var(--ok)':'var(--err)');
+  }
+  const gastosEl = document.getElementById('proy-gastos-lista');
+  if(gastosEl) {
+    if(!gastosVinc.length) {
+      gastosEl.innerHTML = '<div style="color:var(--slate);font-size:12px;padding:6px 0">Sin gastos asociados a este proyecto.</div>';
+    } else {
+      gastosEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="border-bottom:1px solid var(--g200)"><th style="text-align:left;padding:4px 6px;color:var(--slate)">Fecha</th><th style="text-align:left;padding:4px 6px;color:var(--slate)">Descripción</th><th style="text-align:left;padding:4px 6px;color:var(--slate)">Proveedor</th><th style="text-align:right;padding:4px 6px;color:var(--slate)">Base</th><th style="text-align:right;padding:4px 6px;color:var(--slate)">Total</th><th></th></tr></thead><tbody>'
+        + gastosVinc.map(function(g){
+          return '<tr style="border-bottom:1px solid var(--g200)"><td style="padding:4px 6px">'+(g.fecha||'—')+'</td><td style="padding:4px 6px">'+escapeHtml(g.desc||'')+'</td><td style="padding:4px 6px;color:var(--slate)">'+escapeHtml(g.prov||'—')+'</td><td style="padding:4px 6px;text-align:right">€'+(g.importe||0).toFixed(2)+'</td><td style="padding:4px 6px;text-align:right;font-weight:700">€'+(g.total||0).toFixed(2)+'</td><td style="padding:4px 6px"><button class="btn btn-s gasto-desvincular" data-gid="'+g.id+'" data-proy="'+proyCod+'" style="padding:2px 8px;font-size:10px;background:var(--errbg);color:var(--err);border:none;border-radius:4px;cursor:pointer">x</button></td></tr>';
+        }).join('')
+        + '</tbody></table>';
+    }
+    // Wire desvincular buttons via delegation
+    if(gastosEl) gastosEl.onclick = function(e){
+      var btn = e.target.closest('.gasto-desvincular');
+      if(btn) desvincularGastoDeProyecto(btn.getAttribute('data-gid'), btn.getAttribute('data-proy'));
+    };
+  }
+  const btnFac = document.getElementById('btn-crear-fac-pres');
+  if(btnFac) {
+    const tienePres = p.presRef && documents.find(function(d){return d.num===p.presRef&&d.type==='presupuesto';});
+    btnFac.style.display = tienePres ? '' : 'none';
+    btnFac.setAttribute('data-proy-id', String(p.id));
+  }
+}
+
+function desvincularGastoDeProyecto(gastoId, proyCod) {
+  const g = gastos.find(function(x){return String(x.id)===String(gastoId);});
+  if(!g||!confirm('Desvincular este gasto del proyecto?')) return;
+  g.proyCod = '';
+  saveData('desvincular_gasto','Gasto desvinculado de '+proyCod);
+  const p = proyectos.find(function(x){return x.codigo===proyCod||String(x.id)===proyCod;});
+  if(p) renderProyectoResumen(p);
+  renderGastos(); updateDashboard();
+  showToast('Gasto desvinculado','ok');
+}
+
+function abrirGastoParaProyecto() {
+  const proyId = document.getElementById('proy-edit-id').value;
+  const p = proyectos.find(function(x){return String(x.id)===String(proyId);});
+  if(!p) return;
+  const sinProyecto = gastos.filter(function(g){return !g.proyCod||g.proyCod===''||g.proyCod==='null';});
+  if(!sinProyecto.length){ showToast('No hay gastos sin proyecto asignado','er'); return; }
+  const listStr = sinProyecto.map(function(g,i){return (i+1)+'. ['+( g.fecha||'?')+'] '+( g.desc||'')+'  €'+(g.importe||0).toFixed(2);}).join('\n');
+  const sel = prompt('Escribe el Nº del gasto a asociar a "'+p.nombre+'":\n\n'+listStr);
+  if(!sel) return;
+  const idx = parseInt(sel)-1;
+  if(isNaN(idx)||idx<0||idx>=sinProyecto.length){ showToast('Número inválido','er'); return; }
+  const g = sinProyecto[idx];
+  g.proyCod = p.codigo;
+  saveData('vincular_gasto','Gasto vinculado a '+p.codigo);
+  renderProyectoResumen(p);
+  renderGastos(); updateDashboard();
+  showToast('Gasto vinculado a '+p.nombre,'ok');
+}
+
+function crearFacturaDesdeProyecto() {
+  const proyId = document.getElementById('proy-edit-id')?.value;
+  const p = proyectos.find(function(x){return String(x.id)===String(proyId);});
+  if(!p||!p.presRef){ showToast('Este proyecto no tiene presupuesto vinculado','er'); return; }
+  const pres = documents.find(function(d){return d.num===p.presRef&&d.type==='presupuesto';});
+  if(!pres){ showToast('No se encontró el presupuesto '+p.presRef,'er'); return; }
+  closeProyectoModal();
+  showSec('nueva-factura');
+  setTimeout(function(){
+    const sv=function(id,v){var el=document.getElementById(id);if(el)el.value=v||'';};
+    sv('f-cliente',pres.cliente||p.clienteNombre||'');
+    sv('f-nif-cliente',pres.nifCliente||'');
+    sv('f-dir-client',pres.dirCliente||'');
+    sv('f-pago',pres.pago||'Transferencia bancaria');
+    sv('f-pres-ref',pres.num||'');
+    sv('f-proyecto',p.codigo||'');
+    sv('f-obra',pres.obra||p.dir||'');
+    sv('f-notas',pres.notas||'');
+    var ivaEl=document.getElementById('f-iva-pct'); if(ivaEl) ivaEl.value=pres.ivaPct||21;
+    var container=document.getElementById('f-lineas'); if(!container) return;
+    container.innerHTML=''; if(window.lineCounters) lineCounters['f']=0;
+    (pres.lines||[]).forEach(function(l){
+      addLine('f');
+      var rows=container.querySelectorAll('.lir');
+      var row=rows[rows.length-1]; if(!row) return;
+      var inps=row.querySelectorAll('input');
+      if(inps[0]) inps[0].value=l.desc||'';
+      if(inps[1]) inps[1].value=l.qty||1;
+      if(inps[2]) inps[2].value=l.price||0;
+    });
+    calcTotals('f');
+    var numEl=document.getElementById('f-num'); if(numEl&&!numEl.value) numEl.value=getNextDocNum('factura','A');
+    var fechaEl=document.getElementById('f-fecha'); if(fechaEl&&!fechaEl.value) fechaEl.value=new Date().toISOString().split('T')[0];
+    showToast('Presupuesto '+pres.num+' cargado. Revisa y guarda la factura.','ok');
+  },300);
+}
+
+
 function closeProyectoModal(){document.getElementById('modal-proyecto').classList.remove('open');}
 
 function saveProyecto() {
@@ -5381,6 +5512,8 @@ function deleteProyecto(id) {
 }
 
 function renderProyectos() {
+  // Sort by project code number (PRY-0001 first)
+  proyectos.sort(function(a,b){ var na=parseInt((a.codigo||'').replace(/[^0-9]/g,''))||0; var nb=parseInt((b.codigo||'').replace(/[^0-9]/g,''))||0; return na-nb; });
   const q=(document.getElementById('proy-search')?.value||'').toLowerCase();
   const fe=document.getElementById('proy-festado')?.value||'';
   let list=proyectos.filter(p=>{
@@ -5412,13 +5545,20 @@ function renderProyectos() {
       return g.proyCod===p.codigo && g.estado!=='Anulado' && g.tipoGasto!=='personal' && !g.factura;
     });
     const totalGastosDirectos = proyGastosDirectos.reduce(function(s,g){return s+(g.total||0);},0);
-    // Facturación real: suma TODAS las facturas vinculadas al proyecto (no solo importeFac)
+    // Facturación real: suma TODAS las facturas vinculadas al proyecto — BASE IMPONIBLE (sin IVA)
+    // Siempre base vs base para que el margen sea coherente
     const facturasDelProy = documents.filter(function(d){
       return d.type==='factura' && d.proyCod===p.codigo && d.estado!=='Anulado';
     });
-    const facturadoReal = facturasDelProy.length ? facturasDelProy.reduce(function(s,d){return s+(d.total||0);},0) : (p.importeFac||0);
-    const beneficioReal = facturadoReal - totalOTCoste - totalGastosDirectos;
-    const beneficioPct = facturadoReal>0 ? Math.round(beneficioReal/facturadoReal*100) : 0;
+    const facturadoBase = facturasDelProy.length
+      ? facturasDelProy.reduce(function(s,d){return s+(d.sub||d.total/(1+(d.ivaPct||21)/100)||0);},0)
+      : (p.importeFac||0);
+    const facturadoReal = facturadoBase; // base imponible
+    // Coste OTs: o.coste ya es base sin IVA ✓
+    // Gastos directos: g.total incluye IVA — usar g.importe (base)
+    const totalGastosBase = proyGastosDirectos.reduce(function(s,g){return s+(g.importe||0);},0);
+    const beneficioReal = facturadoBase - totalOTCoste - totalGastosBase;
+    const beneficioPct = facturadoBase>0 ? Math.round(beneficioReal/facturadoBase*100) : 0;
     const margen=(p.importeFac||0)-(p.importePres||0);
     const margenPct=p.importePres>0?Math.round(margen/p.importePres*100):0;
     return `<tr>
@@ -5951,10 +6091,12 @@ function updateDashboard() {
   const totalEmitido = facturas.reduce((s,d)=>s+(d.total||0),0);
   const totalCobrado = facturas.reduce(function(s,d){
     const cobrado=(d.pagos||[]).reduce(function(ss,p){return ss+(p.importe||0);},0);
-    // If explicitly Cobrado or Verificado: use total; if pagos exist use them; otherwise 0
+    // Use total (with IVA) for display — cobros are what actually arrived in bank
     if(d.estado==='Cobrado'||d.estado==='Verificado en banco') return s+(d.total||0);
     return s+cobrado;
   },0);
+  // Base imponible emitida (for margin calculation)
+  const totalEmitidoBase = facturas.reduce(function(s,d){return s+(d.sub||Math.round((d.total||0)/1.21*100)/100);},0);
   const facPendientes = facturas.filter(function(d){
     const cobrado=(d.pagos||[]).reduce(function(ss,p){return ss+(p.importe||0);},0);
     return cobrado < (d.total||0)*0.999 && d.estado!=='Cobrado' && d.estado!=='Verificado en banco';
@@ -6102,7 +6244,7 @@ function getEmpresa() {
     email:  document.getElementById('e-email')?.value||empresa.email,
     tel:    document.getElementById('e-tel')?.value||empresa.tel,
     web:    document.getElementById('e-web')?.value||empresa.web,
-    iban:   document.getElementById('e-iban')?.value||empresa.iban,
+    iban:   (document.getElementById('e-iban')?.value||'').trim()||empresa.iban||'',
     pie:    document.getElementById('e-pie')?.value||empresa.pie,
   };
 }
@@ -6386,7 +6528,7 @@ async function generatePDFFromDoc(id) {
   const W=210, H=297;
   const DARK=[28,43,58], GOLD=[196,168,130], CREAM=[244,241,236], GRAY=[100,100,110];
 
-  const ibanDoc = d.iban || d.medioPago_iban || e.iban || '';
+  const ibanDoc = d.iban || d.medioPago_iban || empresa.iban || e.iban || '';
   const tipoLabel = {presupuesto:'PRESUPUESTO',factura:'FACTURA',proforma:'PROFORMA',rectificativa:'RECTIFICATIVA'}[d.type] || (d.type||'').toUpperCase();
 
   // Header
