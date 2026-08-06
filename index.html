@@ -1079,7 +1079,10 @@ td.m{color:var(--slate);font-size:12px}
 <div id="s-proyectos" class="sec">
   <div class="ph">
     <div><div class="pt">Gestión de proyectos</div><div class="ps">Obras · Rentabilidad · Estados</div></div>
-    <button class="btn btn-p" onclick="openProyectoModal()">+ Nuevo proyecto</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-o btn-s" onclick="exportarExcelProyectos()" style="border-color:var(--ok);color:var(--ok)">⬇ Exportar Excel</button>
+      <button class="btn btn-p" onclick="openProyectoModal()">+ Nuevo proyecto</button>
+    </div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
     <div class="sbox" style="flex:1;margin-bottom:0"><span class="sico">🔍</span><input type="text" id="proy-search" placeholder="Buscar por nombre, cliente, dirección..." oninput="renderProyectos()"></div>
@@ -3844,6 +3847,191 @@ function applyImportedProveedores(data, filename, sheetName) {
 // ═══════════════════════════════════════════════════════
 // EXPORT
 // ═══════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════
+// EXPORT PROYECTOS → EXCEL (SheetJS)
+// ═══════════════════════════════════════════════════════
+function exportarExcelProyectos() {
+  if(typeof XLSX === 'undefined') { showToast('SheetJS no disponible','er'); return; }
+  const wb = XLSX.utils.book_new();
+  const euro = function(v){ return Math.round((v||0)*100)/100; };
+  const pct  = function(v){ return Math.round((v||0)*10)/10; };
+
+  // ── Helper: get project financial data ──
+  function getProyData(p) {
+    const cod = p.codigo||String(p.id);
+    const oTs = ordenes.filter(function(o){ return o.proyCod===cod||String(o.proyCod)===String(p.id); });
+    const gastosP = gastos.filter(function(g){ return g.proyCod===cod && g.estado!=='Anulado'; });
+    const facsP = documents.filter(function(d){ return d.type==='factura'&&d.proyCod===cod&&d.estado!=='Anulado'; });
+    const presDocs = documents.filter(function(d){ return d.type==='presupuesto'&&(d.proyCod===cod||d.num===p.presRef); });
+    const totalOTBase = oTs.reduce(function(s,o){return s+(o.coste||0);},0);
+    const totalOTIVA  = oTs.reduce(function(s,o){return s+(o.coste||0)*0.21;},0);
+    const totalGastBase = gastosP.reduce(function(s,g){return s+(g.importe||0);},0);
+    const totalGastIVA  = gastosP.reduce(function(s,g){return s+(g.total||0)-(g.importe||0);},0);
+    const totalVentaBase= facsP.reduce(function(s,d){return s+(d.sub&&d.sub>0?d.sub:d.total/(1+(d.ivaPct!=null?d.ivaPct:21)/100));},0);
+    const totalVentaIVA = facsP.reduce(function(s,d){return s+(d.iva||0);},0);
+    const cobrado = facsP.reduce(function(s,d){ return s+(d.pagos||[]).reduce(function(ss,pp){return ss+(pp.importe||0);},0); },0);
+    const beneficio = totalVentaBase - totalOTBase - totalGastBase;
+    const margenPct = totalVentaBase>0 ? beneficio/totalVentaBase*100 : 0;
+    return { p, cod, oTs, gastosP, facsP, presDocs,
+      totalOTBase, totalOTIVA, totalGastBase, totalGastIVA,
+      totalVentaBase, totalVentaIVA, cobrado, beneficio, margenPct };
+  }
+
+  // ── HOJA RESUMEN GENERAL ──
+  const HDR_COL = { font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1C2B3A'}}, alignment:{horizontal:'center'} };
+  const GOLD_COL = { font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'C4A882'}}, alignment:{horizontal:'center'} };
+  const NUM_FMT = '#,##0.00 €';
+  const PCT_FMT = '0.0"%"';
+  const resumen = [
+    ['OBRANORD — RESUMEN DE PROYECTOS', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Generado: '+new Date().toLocaleDateString('es-ES'), '', '', '', '', '', '', '', '', '', '', '', ''],
+    [],
+    ['Código','Nombre proyecto','Cliente','Estado','Inicio',
+     'Presupuestado €','Venta base €','IVA venta €','Venta total €',
+     'Coste OTs (base) €','IVA OTs €','Gastos directos €','IVA gastos €',
+     'Coste total €','Beneficio €','Margen %','Cobrado €','Pendiente €']
+  ];
+  const allData = proyectos.map(getProyData);
+  allData.forEach(function(d) {
+    const pendiente = d.totalVentaBase*(1+(d.facsP[0]?.ivaPct||21)/100) - d.cobrado;
+    resumen.push([
+      d.cod, d.p.nombre||'', d.p.clienteNombre||'', d.p.estado||'', d.p.inicio||'',
+      euro(d.p.importePres), euro(d.totalVentaBase), euro(d.totalVentaIVA), euro(d.totalVentaBase+d.totalVentaIVA),
+      euro(d.totalOTBase), euro(d.totalOTIVA), euro(d.totalGastBase), euro(d.totalGastIVA),
+      euro(d.totalOTBase+d.totalGastBase), euro(d.beneficio), pct(d.margenPct),
+      euro(d.cobrado), euro(Math.max(0,pendiente))
+    ]);
+  });
+  // Totales
+  resumen.push([]);
+  resumen.push(['TOTALES','','','','',
+    euro(allData.reduce(function(s,d){return s+(d.p.importePres||0);},0)),
+    euro(allData.reduce(function(s,d){return s+d.totalVentaBase;},0)),
+    euro(allData.reduce(function(s,d){return s+d.totalVentaIVA;},0)),
+    euro(allData.reduce(function(s,d){return s+d.totalVentaBase+d.totalVentaIVA;},0)),
+    euro(allData.reduce(function(s,d){return s+d.totalOTBase;},0)),
+    euro(allData.reduce(function(s,d){return s+d.totalOTIVA;},0)),
+    euro(allData.reduce(function(s,d){return s+d.totalGastBase;},0)),
+    euro(allData.reduce(function(s,d){return s+d.totalGastIVA;},0)),
+    euro(allData.reduce(function(s,d){return s+d.totalOTBase+d.totalGastBase;},0)),
+    euro(allData.reduce(function(s,d){return s+d.beneficio;},0)),
+    '',
+    euro(allData.reduce(function(s,d){return s+d.cobrado;},0)),''
+  ]);
+  const wsRes = XLSX.utils.aoa_to_sheet(resumen);
+  wsRes['!cols'] = [{wch:12},{wch:32},{wch:22},{wch:14},{wch:12},
+    {wch:14},{wch:14},{wch:12},{wch:14},{wch:14},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14},{wch:10},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, wsRes, '📊 Resumen');
+
+  // ── HOJA POR PROYECTO ──
+  allData.forEach(function(d) {
+    var rows = [];
+    rows.push([d.cod+' — '+(d.p.nombre||'')]);
+    rows.push(['Cliente: '+(d.p.clienteNombre||'—'), '', 'Estado: '+(d.p.estado||'—'), '', 'Inicio: '+(d.p.inicio||'—')]);
+    rows.push([]);
+
+    // KPIs
+    rows.push(['RESUMEN ECONÓMICO','','','','']);
+    rows.push(['Presupuestado','Venta (base)','IVA venta','Coste total','Beneficio','Margen %']);
+    rows.push([euro(d.p.importePres), euro(d.totalVentaBase), euro(d.totalVentaIVA),
+               euro(d.totalOTBase+d.totalGastBase), euro(d.beneficio), pct(d.margenPct)+'%']);
+    rows.push([]);
+
+    // Presupuestos
+    rows.push(['PRESUPUESTOS']);
+    rows.push(['Número','Fecha','Base €','IVA €','Total €','Estado']);
+    if(d.presDocs.length) {
+      d.presDocs.forEach(function(pr){
+        rows.push([pr.num||'', pr.fecha||'', euro(pr.sub||0), euro(pr.iva||0), euro(pr.total||0), pr.estado||'']);
+      });
+    } else { rows.push(['Sin presupuestos','','','','','']); }
+    rows.push([]);
+
+    // Facturas
+    rows.push(['FACTURAS']);
+    rows.push(['Número','Fecha','Base €','IVA €','Total €','Estado','Cobrado €']);
+    if(d.facsP.length) {
+      d.facsP.forEach(function(f){
+        const cob = (f.pagos||[]).reduce(function(s,p){return s+(p.importe||0);},0);
+        rows.push([f.num||'', f.fecha||'', euro(f.sub||0), euro(f.iva||0), euro(f.total||0), f.estado||'', euro(cob)]);
+      });
+    } else { rows.push(['Sin facturas','','','','','','']); }
+    rows.push([]);
+
+    // OTs / Subcontratas
+    rows.push(['ÓRDENES DE TRABAJO (SUBCONTRATAS)']);
+    rows.push(['Código OT','Proveedor','Descripción','Coste base €','IVA 21% €','Total €','Estado pago']);
+    if(d.oTs.length) {
+      d.oTs.forEach(function(o){
+        rows.push([o.num||'', o.proveedor||'', o.desc||'',
+          euro(o.coste||0), euro((o.coste||0)*0.21), euro((o.coste||0)*1.21), o.pagoProveedor||'Pendiente']);
+      });
+      rows.push(['TOTAL','','', euro(d.totalOTBase), euro(d.totalOTIVA), euro(d.totalOTBase+d.totalOTIVA),'']);
+    } else { rows.push(['Sin OTs','','','','','','']); }
+    rows.push([]);
+
+    // Gastos directos
+    rows.push(['GASTOS DIRECTOS']);
+    rows.push(['Fecha','Descripción','Categoría','Proveedor','Base €','IVA %','Total €','Estado']);
+    if(d.gastosP.length) {
+      d.gastosP.forEach(function(g){
+        rows.push([g.fecha||'', g.desc||'', g.cat||'', g.prov||'',
+          euro(g.importe||0), (g.ivaPct!=null?g.ivaPct:21)+'%', euro(g.total||0), g.estado||'']);
+      });
+      rows.push(['TOTAL','','','', euro(d.totalGastBase), '', euro(d.totalGastBase+d.totalGastIVA),'']);
+    } else { rows.push(['Sin gastos directos','','','','','','','']); }
+    rows.push([]);
+
+    // Pagos cobrados
+    rows.push(['COBROS REGISTRADOS']);
+    rows.push(['Fecha','Importe €','Medio','Notas']);
+    var todosPagos = [];
+    d.facsP.forEach(function(f){ (f.pagos||[]).forEach(function(pp){ todosPagos.push(Object.assign({},pp,{facNum:f.num})); }); });
+    if(todosPagos.length) {
+      todosPagos.forEach(function(pp){ rows.push([pp.fecha||'', euro(pp.importe||0), pp.medio||'', (pp.notas||'')+' ('+pp.facNum+')']); });
+      rows.push(['TOTAL', euro(d.cobrado),'','']);
+    } else { rows.push(['Sin cobros registrados','','','']); }
+
+    var sheetName = (d.cod+' '+((d.p.nombre||'').substring(0,18))).substring(0,31).replace(/[:\/?*[\]]/g,'');
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:14},{wch:32},{wch:22},{wch:18},{wch:12},{wch:10},{wch:12},{wch:14}];
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  // ── HOJA CLIENTES ──
+  var wsCli = XLSX.utils.aoa_to_sheet([
+    ['CLIENTES'],
+    ['Nombre','NIF','Dirección','Email','Tel','Facturado €','Cobrado €'],
+    ...clientes.map(function(c){
+      var facsCli = documents.filter(function(d){return d.type==='factura'&&(d.cliente||'').toLowerCase()===(c.nombre||'').toLowerCase();});
+      var facTotal = facsCli.reduce(function(s,d){return s+(d.total||0);},0);
+      var cobTotal = facsCli.reduce(function(s,d){return s+(d.pagos||[]).reduce(function(ss,p){return ss+(p.importe||0);},0);},0);
+      return [c.nombre||'',c.nif||'',c.dir||'',c.email||'',c.tel||'',euro(facTotal),euro(cobTotal)];
+    })
+  ]);
+  wsCli['!cols']=[{wch:28},{wch:14},{wch:32},{wch:24},{wch:14},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, wsCli, '👥 Clientes');
+
+  // ── HOJA PROVEEDORES ──
+  var wsProv = XLSX.utils.aoa_to_sheet([
+    ['PROVEEDORES / SUBCONTRATAS'],
+    ['Nombre','Especialidad','Email','Tel','NIF','Total pagado €'],
+    ...PROVEEDORES.slice(0,200).map(function(p){
+      var oTsProv = ordenes.filter(function(o){return (o.proveedor||'').toLowerCase()===(p.nombre||'').toLowerCase();});
+      var total = oTsProv.reduce(function(s,o){return s+(o.coste||0);},0);
+      return [p.nombre||'',p.especialidad||p.esp||'',p.email||'',p.tel||p.telefono||'',p.nif||'',euro(total)];
+    })
+  ]);
+  wsProv['!cols']=[{wch:28},{wch:20},{wch:24},{wch:14},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, wsProv, '🏭 Proveedores');
+
+  // Download
+  const fecha = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, 'ObraNord_Proyectos_'+fecha+'.xlsx');
+  showToast('\u2705 Excel exportado correctamente','ok');
+}
+
 function exportGastosCSV() {
   const today = new Date().toISOString().split('T')[0];
   const headers=['ID','Fecha','Descripción','Categoría','Proveedor','Cód.Proveedor','Nº Factura','Base (€)','IVA (%)','IVA (€)','IRPF (%)','Retención (€)','Total (€)','Método pago','Pagador','Estado','Proyecto','Notas'];
@@ -5569,7 +5757,10 @@ function renderProyectos() {
       return d.type==='factura' && d.proyCod===p.codigo && d.estado!=='Anulado';
     });
     const facturadoBase = facturasDelProy.length
-      ? facturasDelProy.reduce(function(s,d){return s+(d.sub||d.total/(1+(d.ivaPct||21)/100)||0);},0)
+      ? facturasDelProy.reduce(function(s,d){
+          const base = d.sub && d.sub>0 ? d.sub : (d.total ? d.total/(1+(d.ivaPct!=null?d.ivaPct:21)/100) : 0);
+          return s+base;
+        },0)
       : (p.importeFac||0);
     const facturadoReal = facturadoBase; // base imponible
     // Coste OTs: o.coste ya es base sin IVA ✓
@@ -7639,6 +7830,11 @@ function guardarPresupuesto() {
     (document.getElementById('p-cliente-sel')?.value ? clientes.find(c=>c.id===parseInt(document.getElementById('p-cliente-sel').value))?.nombre||'' : '');
   if(!cliente){ showToast('Indica el cliente del presupuesto','er'); return; }
 
+  // Force recalc before reading — ensures last-edited field is committed
+  calcTotals('p');
+  // Debug: log line count
+  const _debugLines = Array.from(document.querySelectorAll('#p-lineas .lir'));
+  console.log('[PRE] Lineas en DOM:', _debugLines.length, _debugLines.map(function(r){const i=r.querySelectorAll('input');return {desc:i[0]?.value,qty:i[1]?.value,price:i[2]?.value};}));
   const data = getDocData('p');
   if(!data){ showToast('Completa los datos antes de guardar','er'); return; }
 
