@@ -1537,6 +1537,60 @@ td.m{color:var(--slate);font-size:12px}
 
 
 <!-- ═══ MODAL CLIENTE ═══ -->
+<div id="modal-prov" class="modal-bg">
+  <div class="modal" style="max-width:560px">
+    <div class="mhead"><h3 id="modal-prov-title">Nuevo proveedor</h3><button class="mcls" onclick="closeProvModal()">×</button></div>
+    <div class="mbody">
+      <input type="hidden" id="prov-edit-id">
+      <div class="fgrp"><label class="flbl">Nombre / Razón social *</label><input id="prov-nombre" class="fc" placeholder="Nombre del proveedor"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fgrp"><label class="flbl">Rubro / Especialidad *</label>
+          <select id="prov-rubro" class="fc">
+            <option value="">— Seleccionar —</option>
+          <option value="Aire Acondicionado">Aire Acondicionado</option>
+          <option value="Aluminios">Aluminios</option>
+          <option value="Calderas">Calderas</option>
+          <option value="Cerrajero">Cerrajero</option>
+          <option value="Electricista">Electricista</option>
+          <option value="Fontanero">Fontanero</option>
+          <option value="Jardineria">Jardineria</option>
+          <option value="Lampista">Lampista</option>
+          <option value="Limpieza">Limpieza</option>
+          <option value="Mantenimiento Gral">Mantenimiento Gral</option>
+          <option value="Materiales Construccion">Materiales Construccion</option>
+          <option value="Otros">Otros</option>
+          <option value="Paleta">Paleta</option>
+          <option value="Persianas">Persianas</option>
+          <option value="Persianas / Screens">Persianas / Screens</option>
+          <option value="Pintor">Pintor</option>
+          <option value="Pladurista">Pladurista</option>
+          <option value="Soldador">Soldador</option>
+          <option value="Toldos">Toldos</option>
+          </select>
+        </div>
+        <div class="fgrp"><label class="flbl">NIF / CIF</label><input id="prov-nif" class="fc" placeholder="B12345678"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fgrp"><label class="flbl">Teléfono</label><input id="prov-tel" class="fc" placeholder="600 000 000"></div>
+        <div class="fgrp"><label class="flbl">Teléfono 2</label><input id="prov-tel2" class="fc" placeholder="Opcional"></div>
+      </div>
+      <div class="fgrp"><label class="flbl">Email</label><input id="prov-email" class="fc" type="email" placeholder="proveedor@email.com"></div>
+      <div class="fgrp"><label class="flbl">Web</label><input id="prov-web" class="fc" placeholder="https://"></div>
+      <div class="fgrp"><label class="flbl">Dirección</label><input id="prov-dir" class="fc" placeholder="Calle, número"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fgrp"><label class="flbl">Ciudad</label><input id="prov-ciudad" class="fc" placeholder="Barcelona"></div>
+        <div class="fgrp"><label class="flbl">CP</label><input id="prov-cp" class="fc" placeholder="08000"></div>
+      </div>
+      <div class="fgrp"><label class="flbl">Notas / Descripción</label><textarea id="prov-desc" class="fc" rows="2" placeholder="Notas, condiciones, referencias..."></textarea></div>
+      <div class="fgrp"><label class="flbl">Código proveedor (auto)</label><input id="prov-codigo" class="fc" placeholder="Se genera automáticamente"></div>
+    </div>
+    <div class="mfooter">
+      <button class="btn btn-o" onclick="closeProvModal()">Cancelar</button>
+      <button class="btn btn-g" onclick="saveProveedor()">💾 Guardar proveedor</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-cliente" class="modal-bg">
   <div class="modal-box">
     <div class="mhead"><h3 id="modal-cli-title">Nuevo cliente</h3><button class="mcls" onclick="closeClienteModal()">×</button></div>
