@@ -1079,8 +1079,9 @@ td.m{color:var(--slate);font-size:12px}
 <div id="s-proyectos" class="sec">
   <div class="ph">
     <div><div class="pt">Gestión de proyectos</div><div class="ps">Obras · Rentabilidad · Estados</div></div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-o btn-s" onclick="exportarExcelProyectos()" style="border-color:var(--ok);color:var(--ok)">⬇ Exportar Excel</button>
+      <button class="btn btn-o btn-s" onclick="renumerarProyectos()" style="border-color:var(--gold);color:var(--gold)" title="Renumera todos los proyectos consecutivamente sin huecos">🔢 Renumerar</button>
       <button class="btn btn-p" onclick="openProyectoModal()">+ Nuevo proyecto</button>
     </div>
   </div>
@@ -2924,7 +2925,7 @@ function showSec(id) {
   if (id==='dashboard') { checkAlerts(); }
   if (id==='cuentas') renderCuentas();
   if (id==='contabilidad') renderContabilidad();
-  if (id==='nuevo-presupuesto') { const n=document.getElementById('p-num'); if(n) n.value=getNextDocNum('presupuesto'); const eid=document.getElementById('p-edit-id');if(eid)eid.value=''; populateClienteSelects(); populateProyectoSelects(); }
+  if (id==='nuevo-presupuesto') { const eid=document.getElementById('p-edit-id'); const isEditing=eid&&eid.value; if(!isEditing){if(eid)eid.value=''; const n=document.getElementById('p-num'); if(n) n.value=getNextDocNum('presupuesto');} populateClienteSelects(); populateProyectoSelects(); }
   if (id==='nueva-factura') {
     const serie = document.getElementById('f-serie')?.value||'A';
     const n=document.getElementById('f-num'); if(n) n.value=getNextDocNum('factura', serie);
@@ -3851,6 +3852,34 @@ function applyImportedProveedores(data, filename, sheetName) {
 // ═══════════════════════════════════════════════════════
 // EXPORT PROYECTOS → EXCEL (SheetJS)
 // ═══════════════════════════════════════════════════════
+
+function renumerarProyectos() {
+  if(!confirm('¿Renumerar todos los proyectos en orden consecutivo (PRY-0001, PRY-0002...)?\n\nSe actualizarán también los códigos en documentos, gastos y OTs vinculados.')) return;
+  // Sort by current code number
+  const sorted = proyectos.slice().sort(function(a,b){
+    var na=parseInt((a.codigo||'').replace(/[^0-9]/g,''))||0;
+    var nb=parseInt((b.codigo||'').replace(/[^0-9]/g,''))||0;
+    return na-nb;
+  });
+  const oldToNew = {};
+  sorted.forEach(function(p, i) {
+    const newCod = 'PRY-'+(String(i+1).padStart(4,'0'));
+    oldToNew[p.codigo] = newCod;
+    p.codigo = newCod;
+  });
+  // Update references in documents
+  documents.forEach(function(d){ if(d.proyCod && oldToNew[d.proyCod]) d.proyCod=oldToNew[d.proyCod]; });
+  // Update references in gastos
+  gastos.forEach(function(g){ if(g.proyCod && oldToNew[g.proyCod]) g.proyCod=oldToNew[g.proyCod]; });
+  // Update references in ordenes
+  ordenes.forEach(function(o){ if(o.proyCod && oldToNew[o.proyCod]) o.proyCod=oldToNew[o.proyCod]; });
+  // Update genProyCodigo counter
+  // genProyCodigo uses proyectos.length automatically
+  saveData('renumerar_proyectos','Proyectos renumerados: '+sorted.length+' proyectos');
+  renderProyectos(); renderHistory(); renderGastos(); renderOrdenes(); updateDashboard();
+  showToast('\u2705 '+sorted.length+' proyectos renumerados correctamente','ok');
+}
+
 function exportarExcelProyectos() {
   if(typeof XLSX === 'undefined') { showToast('SheetJS no disponible','er'); return; }
   const wb = XLSX.utils.book_new();
@@ -4000,27 +4029,46 @@ function exportarExcelProyectos() {
   });
 
   // ── HOJA CLIENTES ──
+  // Build clientes from clientes[] + any extra from documents
+  var cliMap = {};
+  clientes.forEach(function(c){ cliMap[(c.nombre||'').toLowerCase()] = c; });
+  documents.filter(function(d){return d.type==='factura'&&d.cliente;}).forEach(function(d){
+    var key = (d.cliente||'').toLowerCase();
+    if(!cliMap[key]) cliMap[key] = {nombre:d.cliente, nif:d.nifCliente||'', dir:d.dirCliente||'', email:d.emailCliente||'', tel:''};
+  });
+  var allClientes = Object.values(cliMap);
   var wsCli = XLSX.utils.aoa_to_sheet([
-    ['CLIENTES'],
-    ['Nombre','NIF','Dirección','Email','Tel','Facturado €','Cobrado €'],
-    ...clientes.map(function(c){
+    ['CLIENTES — ObraNord'],
+    ['Nombre','NIF','Dirección','Email','Tel','Nº Facturas','Facturado €','Cobrado €','Pendiente €'],
+    ...allClientes.map(function(c){
       var facsCli = documents.filter(function(d){return d.type==='factura'&&(d.cliente||'').toLowerCase()===(c.nombre||'').toLowerCase();});
       var facTotal = facsCli.reduce(function(s,d){return s+(d.total||0);},0);
       var cobTotal = facsCli.reduce(function(s,d){return s+(d.pagos||[]).reduce(function(ss,p){return ss+(p.importe||0);},0);},0);
-      return [c.nombre||'',c.nif||'',c.dir||'',c.email||'',c.tel||'',euro(facTotal),euro(cobTotal)];
+      return [c.nombre||'',c.nif||'',c.dir||'',c.email||'',c.tel||'',
+              facsCli.length, euro(facTotal), euro(cobTotal), euro(Math.max(0,facTotal-cobTotal))];
     })
   ]);
-  wsCli['!cols']=[{wch:28},{wch:14},{wch:32},{wch:24},{wch:14},{wch:12},{wch:12}];
+  wsCli['!cols']=[{wch:28},{wch:14},{wch:32},{wch:24},{wch:14},{wch:10},{wch:12},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(wb, wsCli, '👥 Clientes');
 
   // ── HOJA PROVEEDORES ──
+  // PROVEEDORES can use PROVEEDORES_SEED (has NOMBRE SL) or proveedores from Supabase
+  var provList = (typeof proveedores !== 'undefined' && proveedores.length > PROVEEDORES.length)
+    ? proveedores
+    : PROVEEDORES;
   var wsProv = XLSX.utils.aoa_to_sheet([
-    ['PROVEEDORES / SUBCONTRATAS'],
-    ['Nombre','Especialidad','Email','Tel','NIF','Total pagado €'],
-    ...PROVEEDORES.slice(0,200).map(function(p){
-      var oTsProv = ordenes.filter(function(o){return (o.proveedor||'').toLowerCase()===(p.nombre||'').toLowerCase();});
-      var total = oTsProv.reduce(function(s,o){return s+(o.coste||0);},0);
-      return [p.nombre||'',p.especialidad||p.esp||'',p.email||'',p.tel||p.telefono||'',p.nif||'',euro(total)];
+    ['PROVEEDORES / SUBCONTRATAS — ObraNord'],
+    ['Código','Nombre','Especialidad','Email','Teléfono','NIF','Total pagado OTs €'],
+    ...provList.slice(0,300).map(function(p){
+      var nombre = p['NOMBRE SL']||p.nombre||p.razon||'';
+      var cod    = p['CODIGO PROVEEDOR']||p.codigo||'';
+      var esp    = p['RUBRO']||p.especialidad||p.rubro||'';
+      var email  = p['EMAIL']||p.email||'';
+      var tel    = p['TELEFONO']||p.tel||p.telefono||'';
+      var nif    = p['NIF']||p.nif||'';
+      var oTsProv = ordenes.filter(function(o){return (o.proveedor||'').toLowerCase()===nombre.toLowerCase();});
+      var total  = oTsProv.reduce(function(s,o){return s+(o.coste||0);},0);
+      return [cod, nombre, esp, email, tel, nif, euro(total)];
     })
   ]);
   wsProv['!cols']=[{wch:28},{wch:20},{wch:24},{wch:14},{wch:14},{wch:14}];
@@ -7344,19 +7392,15 @@ function guardarFactura() {
 function editarPresupuestoDesdeHistorial(docId) {
   const doc = documents.find(d=>String(d.id)===String(docId));
   if(!doc||doc.type!=='presupuesto'){showToast('Documento no encontrado','er');return;}
+  // Set edit-id BEFORE showSec so showSec doesn't reset the form
+  const editIdEl=document.getElementById('p-edit-id');if(editIdEl)editIdEl.value=doc.id;
   showSec('nuevo-presupuesto');
   waitForElement('p-num').then(function() {
     populateClienteSelects(); populateProyectoSelects();
     const sv=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v||'';};
-    const editIdEl=document.getElementById('p-edit-id');if(editIdEl)editIdEl.value=doc.id;
-    // Fix corrupted numbering (e.g. num saved as FAC-xxx for a presupuesto)
-    const year=new Date().getFullYear();
-    let numToUse = doc.num;
-    if(!numToUse || !numToUse.startsWith('PRE-'+year+'-')) {
-      numToUse = getNextDocNum('presupuesto');
-      showToast('⚠️ Número corregido a '+numToUse+' (formato anterior incorrecto)','');
-    }
-    sv('p-num',numToUse);
+    if(editIdEl)editIdEl.value=doc.id; // ensure it persists
+    // Use doc's original number — never auto-change when editing
+    sv('p-num', doc.num||'');
     sv('p-fecha',doc.fecha);
     sv('p-validez',doc.validez);
     sv('p-cliente',doc.cliente);
