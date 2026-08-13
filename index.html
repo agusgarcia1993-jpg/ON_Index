@@ -876,10 +876,10 @@ td.m{color:var(--slate);font-size:12px}
   <div id="gastos-filtro-resumen" style="display:none;margin-bottom:10px;padding:8px 14px;background:rgba(196,168,130,.1);border-radius:8px;border-left:3px solid var(--gold);font-size:12px;color:var(--dark)"></div>
   <div class="card">
     <div class="ctitle" id="gastos-card-title">💸 Registro de gastos</div>
-    <div class="tw">
+    <div>
       <!-- Vista: gastos operativos/todos -->
-      <table id="gastos-table-normal">
-        <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Proveedor</th><th>Nº Fact.</th><th>Base €</th><th>IVA%</th><th>IRPF%</th><th>Total €</th><th>Pago</th><th>Pagado por</th><th>Estado</th><th>Proyecto</th><th style="width:64px"></th></tr></thead>
+      <table id="gastos-table-normal" style="width:100%;table-layout:auto">
+        <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Proveedor</th><th style="text-align:right">Base €</th><th>IVA%</th><th style="text-align:right">Total €</th><th>Estado</th><th>Proyecto</th><th style="width:90px"></th></tr></thead>
         <tbody id="gastos-tbody"></tbody>
       </table>
       <!-- Vista: obra (OTs) -->
@@ -1538,14 +1538,14 @@ td.m{color:var(--slate);font-size:12px}
 
 <!-- ═══ MODAL CLIENTE ═══ -->
 <div id="modal-prov" class="modal-bg">
-  <div class="modal" style="max-width:560px">
+  <div class="modal-box" style="max-width:560px">
     <div class="mhead"><h3 id="modal-prov-title">Nuevo proveedor</h3><button class="mcls" onclick="closeProvModal()">×</button></div>
     <div class="mbody">
       <input type="hidden" id="prov-edit-id">
       <div class="fgrp"><label class="flbl">Nombre / Razón social *</label><input id="prov-nombre" class="fc" placeholder="Nombre del proveedor"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="fgrp"><label class="flbl">Rubro / Especialidad *</label>
-          <select id="prov-rubro" class="fc">
+          <select id="prov-rubro" class="fc" onchange="assignProvCodigo()">
             <option value="">— Seleccionar —</option>
           <option value="Aire Acondicionado">Aire Acondicionado</option>
           <option value="Aluminios">Aluminios</option>
@@ -2743,7 +2743,14 @@ async function loadFromSupabase() {
         id:o.id, num:o.num, proyCod:o.proy_cod, proveedor:o.proveedor,
         desc:o.descripcion, coste:o.coste, estado:o.estado,
         fecha:o.fecha, notas:o.notas,
-        pagoProveedor:o.pago_proveedor, pagosProveedor:o.pagos_proveedor||[]
+        pagoProveedor:o.pago_proveedor||'',
+        // Merge pagosProveedor: keep whichever has more payments (avoid overwriting local)
+        pagosProveedor:(function(){
+          var remPagos = o.pagos_proveedor||[];
+          var localOT  = (typeof ordenes!=='undefined' ? ordenes : []).find(function(x){return String(x.id)===String(o.id);});
+          var locPagos = localOT ? (localOT.pagosProveedor||[]) : [];
+          return remPagos.length >= locPagos.length ? remPagos : locPagos;
+        })()
       }; }),
       tesoreria: (tesRows||[]).map(function(t){ return {
         id:t.id, tipo:t.tipo, fecha:t.fecha, medio:t.medio,
@@ -2811,7 +2818,16 @@ function applyRemoteData(remote, withConfirm) {
     if(remote.tareas)     tareas=remote.tareas;
     if(remote.ordenes)    ordenes=remote.ordenes;
     if(remote.eventos)    { eventos=remote.eventos; localStorage.setItem('on_eventos',JSON.stringify(eventos)); }
-    if(remote.proveedores) { PROVEEDORES = normalizarProveedores(remote.proveedores); }
+    if(remote.proveedores && remote.proveedores.length) {
+      const remNorm = normalizarProveedores(remote.proveedores);
+      // Merge: keep local proveedores not yet in remote (just added)
+      const remCodigos = new Set(remNorm.map(function(p){return p['CODIGO PROVEEDOR']||p['CODIGO']||'';}));
+      const localOnly = PROVEEDORES.filter(function(p){
+        var cod = p['CODIGO PROVEEDOR']||p['CODIGO']||'';
+        return cod && !remCodigos.has(cod);
+      });
+      PROVEEDORES = remNorm.concat(localOnly);
+    }
     if(remote.gastoRecurrentes){gastoRecurrentes=remote.gastoRecurrentes;localStorage.setItem("on_gastos_rec",JSON.stringify(gastoRecurrentes));}
     _lastRemoteSave = Date.now();
     localStorage.setItem('on_last_seen_remote_ts', String(Date.now()));
@@ -3717,26 +3733,28 @@ function renderGastos() {
       if(action==='del-gasto')  deleteGasto(id);
     });
   }
-  tbody.innerHTML=list.length ? list.map(g=>`
-    <tr>
-      <td>${g.fecha ? g.fecha.split('-').reverse().join('/') : '—'}</td>
-      <td><strong>${g.desc}</strong>${g.notas?`<br><span style="font-size:11px;color:var(--slate)">${g.notas.substring(0,50)}</span>`:''}</td>
-      <td><span class="badge ${catColors[g.cat]||'bgry'}">${g.cat}</span></td>
-      <td class="m">${g.prov||'—'}</td>
-      <td class="m">${g.factura||'—'}</td>
-      <td>€${g.importe.toFixed(2)}</td>
-      <td class="m">${g.ivaPct}%</td>
-      <td class="m">${g.irpfPct>0?'<span style="color:var(--err)">-'+g.irpfPct+'%</span>':'—'}</td>
-      <td><strong>€${g.total.toFixed(2)}</strong>${g.irpfPct>0?`<br><span style="font-size:10px;color:var(--err)">-€${(g.retencion||0).toFixed(2)} IRPF</span>`:''}</td>
-      <td class="m">${g.metodo}</td>
-      <td class="m">${g.pagador}</td>
-      <td><span class="badge ${estadoColors[g.estado]||'bgry'}">${g.estado}</span></td>
-      <td class="m">${g.proyCod?'<span class="badge bgry" style="font-size:10px">'+g.proyCod+'</span>':'—'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-o btn-s" style="padding:4px 8px" data-action="edit-gasto" data-id="${g.id}">✏️</button>
-        <button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer;margin-left:3px" data-action="del-gasto" data-id="${g.id}">🗑</button>
-      </td>
-    </tr>`).join('') : '<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--slate)">Sin gastos registrados. Haz clic en "+ Registrar gasto".</td></tr>';
+  tbody.innerHTML=list.length ? list.map(function(g){
+    var fechaStr = g.fecha ? g.fecha.split('-').reverse().join('/') : '—';
+    var metodoIcon = {Transferencia:'🏦',Efectivo:'💵',Bizum:'📲','Tarjeta empresa':'💳',Tarjeta:'💳'}[g.metodo]||'💳';
+    var descExtra = '';
+    if(g.factura) descExtra += '<br><span style="font-size:10px;color:var(--slate)">Fact: '+escapeHtml(g.factura)+'</span>';
+    if(g.metodo||g.pagador) descExtra += '<br><span style="font-size:10px;color:var(--slate)">'+metodoIcon+' '+(g.pagador||'')+'</span>';
+    return '<tr>'
+      +'<td style="white-space:nowrap;font-size:12px">'+fechaStr+'</td>'
+      +'<td><strong style="font-size:13px">'+escapeHtml(g.desc||'')+'</strong>'+descExtra+'</td>'
+      +'<td><span class="badge '+(catColors[g.cat]||'bgry')+'" style="font-size:11px">'+escapeHtml(g.cat||'')+'</span></td>'
+      +'<td style="font-size:12px">'+escapeHtml(g.prov||'—')+'</td>'
+      +'<td style="font-size:13px">€'+(g.importe||0).toFixed(2)+'</td>'
+      +'<td style="font-size:12px;color:var(--slate)">'+(g.ivaPct!=null?g.ivaPct:21)+'%'+(g.irpfPct>0?'<br><span style="color:var(--err);font-size:10px">-'+g.irpfPct+'% IRPF</span>':'')+'</td>'
+      +'<td><strong style="font-size:13px">€'+(g.total||0).toFixed(2)+'</strong>'+(g.irpfPct>0?'<br><span style="font-size:10px;color:var(--err)">-€'+(g.retencion||0).toFixed(2)+'</span>':'')+'</td>'
+      +'<td><span class="badge '+(estadoColors[g.estado]||'bgry')+'" style="font-size:11px">'+escapeHtml(g.estado||'')+'</span></td>'
+      +'<td>'+(g.proyCod?'<span class="badge bgry" style="font-size:10px">'+escapeHtml(g.proyCod)+'</span>':'—')+'</td>'
+      +'<td style="white-space:nowrap">'
+        +'<button class="btn btn-o btn-s" style="padding:5px 10px" data-action="edit-gasto" data-id="'+g.id+'">✏️</button>'
+        +' <button class="btn btn-s" style="padding:5px 10px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer" data-action="del-gasto" data-id="'+g.id+'">🗑</button>'
+      +'</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--slate)">Sin gastos registrados. Haz clic en "+ Registrar gasto".</td></tr>';
   updateGastosKPIs();
 }
 
@@ -6220,30 +6238,40 @@ function buildCashFlow() {
       });
     }
   });
-  // Auto: pagos de facturas as ingresos (skip if already in tesoreria via savePagoFac)
+  // Auto: pagos de facturas as ingresos
+  // ONLY add if NOT already covered by a tesoreria entry (manual or via savePagoFac)
   documents.filter(function(d){return d.type==='factura';}).forEach(function(d){
+    const dId = String(d.id);
+    const dNum = d.num||'';
     (d.pagos||[]).forEach(function(p,i){
-      // Check if this specific pago is already in tesoreria (added by savePagoFac)
+      const pImporte = p.importe||0;
+      const pFecha   = p.fecha||d.fecha||'';
+      // Already in tesoreria if: same _docId, OR same ref+importe+fecha (manual entry)
       const alreadyInTes = tesoreria.some(function(t){
-        return t._docId===String(d.id) && Math.abs((t.importe||0)-(p.importe||0))<0.01 && t.tipo==='ingreso';
+        if(t.tipo!=='ingreso') return false;
+        if(t._docId===dId && Math.abs((t.importe||0)-pImporte)<0.01) return true;
+        if((t.ref===dNum) && Math.abs((t.importe||0)-pImporte)<0.01 && t.fecha===pFecha) return true;
+        return false;
       });
       if(!alreadyInTes) all.push({
-        id:'p_'+d.id+'_'+i, source:'pago', tipo:'ingreso',
-        fecha:p.fecha||d.fecha||'', concepto:'Cobro '+d.num+' — '+(d.cliente||''),
-        contraparte:d.cliente||'', importe:p.importe||0,
+        id:'p_'+dId+'_'+i, source:'pago', tipo:'ingreso',
+        fecha:pFecha, concepto:'Cobro '+dNum+' — '+(d.cliente||''),
+        contraparte:d.cliente||'', importe:pImporte,
         medio:p.medio||d.medioPago||'Transferencia',
-        ref:d.num||'', estado:'Realizado', proyCod:''
+        ref:dNum, estado:'Realizado', proyCod:d.proyCod||''
       });
     });
-    // If factura is Cobrado/Verificado but has NO pagos recorded, show as auto-ingreso
+    // Cobrado sin pagos registrados → auto-ingreso solo si no hay nada en tesoreria para esta factura
     if((d.estado==='Cobrado'||d.estado==='Verificado en banco') && !(d.pagos||[]).length) {
-      const alreadyInTes = tesoreria.some(function(t){ return t._docId===String(d.id)&&t.tipo==='ingreso'; });
+      const alreadyInTes = tesoreria.some(function(t){
+        return t.tipo==='ingreso' && (t._docId===dId || t.ref===dNum);
+      });
       if(!alreadyInTes) all.push({
-        id:'p_'+d.id+'_auto', source:'pago', tipo:'ingreso',
-        fecha:d.fecha||'', concepto:'Cobro '+d.num+' — '+(d.cliente||''),
+        id:'p_'+dId+'_auto', source:'pago', tipo:'ingreso',
+        fecha:d.fecha||'', concepto:'Cobro '+dNum+' — '+(d.cliente||''),
         contraparte:d.cliente||'', importe:d.total||0,
         medio:d.medioPago||'Transferencia',
-        ref:d.num||'', estado:'Realizado', proyCod:''
+        ref:dNum, estado:'Realizado', proyCod:d.proyCod||''
       });
     }
   });
@@ -6414,8 +6442,19 @@ function updateDashboard() {
   }).length;
 
   // ── Gastos: pagados vs pendientes ────────────────────
-  const gastosPagados  = gastosAnyo.filter(g=>g.estado==='Pagado').reduce((s,g)=>s+(g.total||0),0);
-  const gastosPendient = gastosAnyo.filter(g=>g.estado==='Pendiente').reduce((s,g)=>s+(g.total||0),0);
+  // Gastos personales (pagados por socios de su bolsillo): solo contamos el IVA recuperable,
+  // no el importe total (que no es desembolso de empresa)
+  const gastosPagados = gastosAnyo.filter(g=>g.estado==='Pagado').reduce(function(s,g){
+    if(g.tipoGasto==='personal') {
+      // Solo el IVA soportado (recuperable en Mod.303)
+      return s + (g.importe||0)*(g.ivaPct!=null?g.ivaPct:21)/100;
+    }
+    return s+(g.total||0);
+  },0);
+  const gastosPendient = gastosAnyo.filter(g=>g.estado==='Pendiente').reduce(function(s,g){
+    if(g.tipoGasto==='personal') return s + (g.importe||0)*(g.ivaPct!=null?g.ivaPct:21)/100;
+    return s+(g.total||0);
+  },0);
 
   // ── Beneficio y margen ───────────────────────────────
   const beneficio = totalCobrado - gastosPagados;
@@ -6435,7 +6474,7 @@ function updateDashboard() {
   document.getElementById('kpi-prog').style.width = Math.min(100, totalEmitido/1500).toFixed(1)+'%';
 
   el('kpi-gast',     fmt(gastosPagados));
-  el('kpi-gast-sub', gastosPendient>0 ? fmt(gastosPendient)+' pendientes' : 'Sin gastos pendientes');
+  el('kpi-gast-sub', (gastosPendient>0 ? fmt(gastosPendient)+' pendientes · ' : '')+' Personal: solo IVA');
 
   el('kpi-beneficio', fmt(beneficio));
   el('kpi-beneficio-sub', 'Cobrado − Gastos pagados');
@@ -6483,13 +6522,28 @@ function updateDashboard() {
     }
   }
 
-  // Tesorería KPIs en dashboard — incluye pagos de facturas aunque no estén en tesorería
+  // Tesorería KPIs en dashboard — incluye pagos de facturas pero SIN duplicar
+  // Start with manual tesoreria entries
   const tesIngresosReal = [...tesoreria.filter(function(t){return t.tipo==='ingreso'&&t.estado==='Realizado';})];
-  // Add pagos from facturas not already in tesoreria
+  // Add pagos from facturas only if NOT already covered by a tesoreria entry
   documents.filter(function(d){return d.type==='factura';}).forEach(function(d){
+    const dId = String(d.id);
+    const dNum = d.num||'';
     (d.pagos||[]).forEach(function(p){
-      const yaEsta=tesIngresosReal.some(function(t){return t._docId===String(d.id)&&Math.abs((t.importe||0)-(p.importe||0))<0.01;});
-      if(!yaEsta) tesIngresosReal.push({tipo:'ingreso',medio:p.medio||d.medioPago||'Transferencia',importe:p.importe||0,estado:'Realizado',_docId:String(d.id)});
+      const pImp = p.importe||0;
+      const pFecha = p.fecha||d.fecha||'';
+      // Check: already in tesoreria by _docId OR by ref+importe+fecha (manual entry)
+      const yaEsta = tesIngresosReal.some(function(t){
+        if(t.tipo!=='ingreso') return false;
+        if(t._docId===dId && Math.abs((t.importe||0)-pImp)<0.01) return true;
+        if((t.ref===dNum) && Math.abs((t.importe||0)-pImp)<0.01 && t.fecha===pFecha) return true;
+        return false;
+      });
+      if(!yaEsta) tesIngresosReal.push({
+        tipo:'ingreso', medio:p.medio||d.medioPago||'Transferencia',
+        importe:pImp, fecha:pFecha, ref:dNum,
+        estado:'Realizado', _docId:dId
+      });
     });
   });
   const efectivoIn=tesIngresosReal.filter(function(t){return (t.medio||'').toLowerCase().includes('efectivo');}).reduce(function(s,t){return s+(t.importe||0);},0);
@@ -7078,7 +7132,10 @@ function renderContabilidad() {
     const base=g.importe||0; const pct=g.ivaPct||0;
     return s + base*(pct/100);
   },0);
-  const totalGastos = gastosEmpresaP.reduce(function(s,g){return s+(g.total||0);},0);
+  const totalGastos = gastosEmpresaP.reduce(function(s,g){
+    if(g.tipoGasto==='personal') return s+(g.importe||0)*(g.ivaPct!=null?g.ivaPct:21)/100;
+    return s+(g.total||0);
+  },0);
   const ivaPersonal = gastosPersonalP.reduce(function(s,g){return s+(g.importe||0)*(g.ivaPct||0)/100;},0);
 
   const ivaLiq = ivaRep - ivaSop;
@@ -8045,9 +8102,17 @@ function guardarPresupuesto() {
 // PROVEEDORES DB — CRUD manual + import + código por rubro
 // ═══════════════════════════════════════════════════════
 const RUBRO_PREFIXES = {
-  'Albañilería':'ALB','Carpintería':'CAR','Electricidad':'ELE','Fontanería':'FON',
-  'Pintura':'PIN','Cerrajería':'CER','Vidrios y Complementos':'VID',
-  'Persianas y Toldos':'PER','Climatización':'CLI','Materiales':'MAT',
+  'Aire Acondicionado':'AIR','Aluminios':'ALU','Calderas':'CAL',
+  'Cerrajero':'CER','Cerrajería':'CER','Electricista':'ELE','Electricidad':'ELE',
+  'Fontanero':'FON','Fontanería':'FON','Jardineria':'JAR',
+  'Lampista':'LAM','Limpieza':'LIM','Mantenimiento Gral':'MAG',
+  'Materiales Construccion':'MAT','Materiales':'MAT',
+  'Paleta':'PAL','Albañilería':'ALB',
+  'Persianas':'PER','Persianas / Screens':'PES',
+  'Persianas y Toldos':'PST','Pintor':'PIN','Pintura':'PIN',
+  'Pladurista':'PLA','Soldador':'SOL',
+  'Toldos':'TOL','Climatización':'AIR',
+  'Carpintería':'CAR','Vidrios y Complementos':'VID',
   'Reformas Integrales':'REF','Otros':'OTR'
 };
 
@@ -8126,7 +8191,18 @@ function saveProveedor() {
     PROVEEDORES.unshift(p);
   }
   localStorage.setItem('on_proveedores',JSON.stringify(PROVEEDORES));
-  saveData(); // sync to Sheets so both users see the new proveedor
+  // Immediate Supabase upsert so Franco sees it instantly (don't wait for saveData batch)
+  sbFetch('proveedores','POST',{
+    codigo: p['CODIGO PROVEEDOR']||p['CODIGO']||'PROV-'+Date.now(),
+    nombre: p['NOMBRE SL']||'', rubro: p['RUBRO']||'',
+    nif: p['NIF']||'', email: p['EMAIL']||'',
+    telefono: p['TELEFONO']||'', telefono2: p['TELEFONO 2']||'',
+    direccion: p['DIRECCION']||'', web: p['WEB']||'',
+    descripcion: p['DESCRIPCION']||'', ciudad: p['CIUDAD']||'', cp: p['CP']||'',
+    updated_at: new Date().toISOString()
+  }).then(function(){ console.log('[Supabase] Proveedor guardado: '+p['NOMBRE SL']); })
+    .catch(function(e){ console.warn('[Supabase] Error guardando proveedor:', e.message); });
+  saveData(); // full sync
   closeProvModal(); renderProveedoresDB(); renderProveedores(PROVEEDORES);
   // refresh rubro filter
   const pdbR=document.getElementById('prov-db-rubro');
@@ -8144,8 +8220,14 @@ function saveProveedor() {
 function deleteProveedor(id) {
   if(!confirm('¿Eliminar este proveedor?')) return;
   const idx=PROVEEDORES.findIndex(p=>p['_id']===id);
-  if(idx!==-1){PROVEEDORES.splice(idx,1);localStorage.setItem('on_proveedores',JSON.stringify(PROVEEDORES));}
-  renderProveedoresDB(); showToast('Proveedor eliminado');
+  if(idx!==-1){
+    const cod = PROVEEDORES[idx]['CODIGO PROVEEDOR']||PROVEEDORES[idx]['CODIGO']||'';
+    PROVEEDORES.splice(idx,1);
+    localStorage.setItem('on_proveedores',JSON.stringify(PROVEEDORES));
+    if(cod) sbFetch('proveedores','DELETE',null,'?codigo=eq.'+encodeURIComponent(cod))
+      .catch(function(e){console.warn('[Supabase] Error borrando proveedor:',e.message);});
+  }
+  renderProveedoresDB(); showToast('Proveedor eliminado','ok');
 }
 
 function importProveedoresDB(input) {
@@ -8213,13 +8295,16 @@ function renderProveedoresDB() {
     });
   }
   if(!list.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--slate)">Sin proveedores.</td></tr>';return;}
-  tbody.innerHTML=list.slice(0,100).map(function(p){
+  tbody.innerHTML=list.map(function(p){
     var nombre = p['NOMBRE SL']||p['EMPRESA']||p['NOMBRE']||'—';
     var codigo = p['CODIGO PROVEEDOR']||p['CODIGO']||'—';
     var dir = p['DIRECCION']||p['DIR']||'';
     var ciudad = p['CIUDAD']||'';
     var cp = p['CP']||'';
     var dirFull = [dir, cp, ciudad].filter(Boolean).join(', ') || '—';
+    // Ensure _id exists
+    if(!p['_id']) p['_id'] = Date.now().toString()+Math.random().toString(36).slice(2);
+    var pid = p['_id'];
     return '<tr>'+
       '<td><span class="badge bgry" style="font-size:10px">'+escapeHtml(codigo)+'</span></td>'+
       '<td><strong>'+escapeHtml(nombre)+'</strong>'+(p['NIF']?'<br><span style="font-size:10px;color:var(--slate)">'+p['NIF']+'</span>':'')+'</td>'+
@@ -8228,8 +8313,8 @@ function renderProveedoresDB() {
       '<td class="m" style="font-size:11px">'+escapeHtml(dirFull)+'</td>'+
       '<td class="m" style="font-size:11px">'+(p['WEB']?'<a href="'+p['WEB']+'" target="_blank" style="color:var(--gold)">🌐</a>':'—')+'</td>'+
       '<td style="white-space:nowrap">'+
-        '<button class="btn btn-o btn-s" style="padding:4px 8px" data-action="edit-prov" data-id="'+p['_id']+'">✏️</button>'+
-        (p['_id']?'<button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer;margin-left:3px" data-action="del-prov" data-id="'+p['_id']+'">🗑</button>':'')+
+        '<button class="btn btn-o btn-s" style="padding:4px 8px" data-action="edit-prov" data-id="'+pid+'">✏️</button>'+
+        '<button class="btn btn-s" style="padding:4px 8px;background:var(--errbg);color:var(--err);border:none;border-radius:6px;cursor:pointer;margin-left:3px" data-action="del-prov" data-id="'+pid+'">🗑</button>'+
       '</td>'+
     '</tr>';
   }).join('');
@@ -9339,6 +9424,16 @@ function abrirModalPagoOT(otId) {
     notas: 'Auto desde OT '+o.num+(esPagoTotal?' (pago final)':' (pago parcial)')+(irpfPct>0?' · IRPF '+irpfPct+'%':'')
   };
   gastos.unshift(gasto);
+  // Immediate Supabase upsert of this OT to prevent polling from overwriting pagosProveedor
+  sbFetch('ordenes','POST',{
+    id:String(o.id), num:o.num||'', proy_cod:o.proyCod||'',
+    proveedor:o.proveedor||'', descripcion:o.desc||'',
+    coste:o.coste||0, estado:o.estado||'Completada',
+    fecha:o.fecha||'', notas:o.notas||'',
+    pago_proveedor:o.pagoProveedor||'',
+    pagos_proveedor:JSON.stringify(o.pagosProveedor||[]),
+    updated_at:new Date().toISOString()
+  }).catch(function(e){console.warn('[OT upsert]',e.message);});
   saveData(); renderOrdenes(); renderGastos(); renderCuentas(); updateDashboard();
   showToast('✅ Pago de €'+importePago.toFixed(2)+' registrado · '+(esPagoTotal?'OT COMPLETAMENTE PAGADA':'Pendiente: €'+(pendiente-importePago).toFixed(2)),'ok');
 }
