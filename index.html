@@ -388,6 +388,7 @@ td.m{color:var(--slate);font-size:12px}
     <div><div class="pt">Nuevo presupuesto</div><div class="ps">PDF profesional con tu marca</div></div>
     <div class="btn-grp">
       <button class="btn btn-o" onclick="previewDoc('presupuesto')">👁 Vista previa</button>
+      <button class="btn btn-o btn-s" onclick="generatePDFSinIVA()" style="border-color:var(--gold);color:var(--gold)" title="PDF sin IVA incluido">📄 PDF sin IVA</button>
       <button class="btn btn-g" onclick="generatePDF('presupuesto')">⬇ Descargar PDF</button>
     </div>
   </div>
@@ -467,7 +468,8 @@ td.m{color:var(--slate);font-size:12px}
         <div class="trow"><span class="tlbl" style="font-weight:700">TOTAL</span><span class="tval tgrand" id="p-total">€0.00</span></div>
       </div>
     </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--g200)">
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--g200)">
+        <button type="button" class="btn btn-o btn-s" style="border-color:var(--gold);color:var(--gold)" onclick="generatePDFSinIVA()">📄 PDF sin IVA</button>
         <button type="button" class="btn btn-g" style="padding:10px 28px;font-size:15px" onclick="guardarPresupuesto()">💾 Guardar presupuesto</button>
       </div>
   </div>
@@ -6825,6 +6827,145 @@ async function generatePDF(type) {
   doc.save(filename);
   showToast('PDF descargado: '+filename,'ok');
   updateDashboard();
+}
+
+
+// ═══════════════════════════════════════════════════════
+// PDF SIN IVA — mismo formato pero muestra solo base imponible
+// ═══════════════════════════════════════════════════════
+async function generatePDFSinIVA(docId) {
+  // Load data either from form (if docId is null) or from saved doc
+  let data;
+  if(docId) {
+    const d = documents.find(function(x){return String(x.id)===String(docId);});
+    if(!d){ showToast('No se encontró el documento','er'); return; }
+    data = {
+      num: d.num||'', fecha: d.fecha||'', validez: d.validez||'',
+      pago: d.pago||'', iban: d.iban||'', presRef: d.presRef||'',
+      cliente: d.cliente||'', nifCliente: d.nifCliente||'',
+      dirCliente: d.dirCliente||'', emailCliente: d.emailCliente||'',
+      obra: d.obra||'', notas: d.notas||'', ivaPct: d.ivaPct||21,
+      lines: d.lines||[], sub: d.sub||0, iva: d.iva||0, total: d.total||0
+    };
+  } else {
+    // Read from form
+    calcTotals('p');
+    data = getDocData('p');
+    if(!data || !data.num){ showToast('Guarda el presupuesto antes de generar el PDF','er'); return; }
+  }
+
+  const e = empresa || {};
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const W=210, H=297;
+  const DARK=[28,43,58], GOLD=[196,168,130], CREAM=[244,241,236], GRAY=[100,110,120];
+
+  // Header
+  doc.setFillColor(...DARK); doc.rect(0,0,W,28,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(22); doc.setFont('helvetica','bold');
+  doc.text('OBRA',14,18); doc.setTextColor(...GOLD); doc.text('NORD',39,18);
+  doc.setTextColor(180,190,200); doc.setFontSize(8); doc.text(e.web||'www.obranord.com',W-14,10,{align:'right'});
+  doc.setTextColor(...GOLD); doc.setFontSize(9); doc.setFont('helvetica','bold');
+  doc.text('PRESUPUESTO',W-14,18,{align:'right'});
+  doc.setTextColor(255,255,255); doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.text(data.num,W-14,24,{align:'right'});
+
+  // Aviso SIN IVA — banda dorada destacada
+  doc.setFillColor(...GOLD); doc.rect(0,28,W,8,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(8); doc.setFont('helvetica','bold');
+  doc.text('⚠ PRESUPUESTO SIN IVA INCLUIDO — Los precios indicados no incluyen IVA ('+data.ivaPct+'%)', W/2, 33.5, {align:'center'});
+
+  let y = 42;
+
+  // Emisor y cliente
+  doc.setFillColor(...CREAM); doc.roundedRect(14,y,85,36,3,3,'F');
+  doc.setFillColor(...CREAM); doc.roundedRect(110,y,86,36,3,3,'F');
+  doc.setTextColor(...GOLD); doc.setFontSize(7); doc.setFont('helvetica','bold');
+  doc.text('EMISOR',19,y+7); doc.text('CLIENTE',115,y+7);
+  doc.setTextColor(...DARK); doc.setFontSize(9); doc.setFont('helvetica','bold');
+  doc.text(e.nombre||'Urbaniq Home Grup SL',19,y+13);
+  doc.text(data.cliente||'—',115,y+13);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+  doc.text(e.dir||'',19,y+19);
+  doc.text('CIF: '+(e.cif||'B88804844'),19,y+24);
+  doc.text(e.email||'',19,y+29);
+  let _cliY2 = y+19;
+  [data.nifCliente?'NIF: '+data.nifCliente:'', data.dirCliente, data.emailCliente].filter(Boolean).forEach(function(l){
+    var wrapped = doc.splitTextToSize(l||'', 85);
+    wrapped.forEach(function(wl){ doc.text(wl,115,_cliY2); _cliY2+=4.5; });
+  });
+
+  y += 42;
+
+  // Metadata
+  doc.setFillColor(245,246,248); doc.roundedRect(14,y,182,10,2,2,'F');
+  doc.setTextColor(...GRAY); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+  doc.text('Fecha: '+data.fecha,19,y+6.5);
+  if(data.validez) doc.text('Validez: '+data.validez+' días',70,y+6.5);
+  if(data.pago)    doc.text('Pago: '+data.pago,120,y+6.5);
+  if(data.presRef) doc.text('Ref: '+data.presRef,170,y+6.5);
+  y += 16;
+
+  // Lines table — show unit price as BASE (no IVA)
+  const tData = (data.lines||[]).map(function(l){
+    return [l.desc||'', String(l.qty||1), (l.price||0).toFixed(2)+' €', (l.total||0).toFixed(2)+' €'];
+  });
+  if(!tData.length) tData.push(['Sin conceptos añadidos','','','']);
+
+  doc.autoTable({
+    startY: y,
+    head: [['Descripción','Uds','Precio/ud (s/IVA)','Total (s/IVA)']],
+    body: tData,
+    margin: {left:14, right:14},
+    headStyles: {fillColor:DARK, textColor:[255,255,255], fontSize:8, fontStyle:'bold'},
+    bodyStyles: {fontSize:8.5},
+    columnStyles: {0:{cellWidth:'auto'}, 1:{halign:'center',cellWidth:14}, 2:{halign:'right',cellWidth:34}, 3:{halign:'right',cellWidth:34, fontStyle:'bold'}}
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+  if(y + 60 > H - 22){ doc.addPage(); y = 20; }
+
+  // Totals block — ONLY base, no IVA line
+  const tW=80, tX=W-14-tW;
+  doc.setFillColor(...CREAM); doc.roundedRect(tX-4,y-2,tW+8,22,3,3,'F');
+  doc.setTextColor(...GRAY); doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+  doc.text('Base imponible:',tX,y+6); doc.text(data.sub.toFixed(2)+' €',tX+tW,y+6,{align:'right'});
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.8);
+  doc.line(tX,y+11,tX+tW,y+11);
+  doc.setTextColor(...DARK); doc.setFontSize(11); doc.setFont('helvetica','bold');
+  doc.text('TOTAL S/IVA',tX,y+18); doc.text(data.sub.toFixed(2)+' €',tX+tW,y+18,{align:'right'});
+  y += 28;
+
+  // Nota sobre IVA
+  if(y + 14 > H - 22){ doc.addPage(); y = 20; }
+  doc.setFillColor(255,248,230); doc.roundedRect(14,y,182,14,2,2,'F');
+  doc.setTextColor(150,100,30); doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+  doc.text('NOTA IMPORTANTE:', 19, y+5.5);
+  doc.setFont('helvetica','normal');
+  doc.text('Este presupuesto no incluye IVA. Al importe indicado se añadirá el '+data.ivaPct+'% de IVA ('+data.iva.toFixed(2)+' €), resultando un total con IVA de '+data.total.toFixed(2)+' €.', 19, y+10.5);
+  y += 20;
+
+  // Notas
+  if(data.notas){
+    if(y+20>H-22){doc.addPage();y=20;}
+    doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...DARK);doc.text('Notas:',14,y);
+    doc.setFont('helvetica','normal');doc.setTextColor(...GRAY);
+    const notasLns = doc.splitTextToSize(data.notas,180);
+    notasLns.forEach(function(l,i){
+      if(y+5+(i*4.5)>H-22){doc.addPage();y=15-(i*4.5);}
+      doc.text(l,14,y+5+(i*4.5));
+    });
+    y += 5 + (notasLns.length*4.5) + 6;
+  }
+
+  // Footer
+  doc.setFillColor(...DARK); doc.rect(0,H-14,W,14,'F');
+  doc.setTextColor(143,163,180); doc.setFontSize(7);
+  doc.text(e.pie||('Urbaniq Home Grup SL · CIF B88804844 · '+( e.dir||'')), W/2, H-5, {align:'center'});
+
+  const filename = (data.num||'presupuesto')+'_SIN_IVA.pdf';
+  doc.save(filename);
+  showToast('PDF sin IVA descargado: '+filename,'ok');
 }
 
 // ═══════════════════════════════════════════════════════
